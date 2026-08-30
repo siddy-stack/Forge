@@ -7,15 +7,29 @@
 
 typedef struct {
     int fd;
-    char buffer[FORGE_CONNECTION_BUFFER_SIZE];
-    size_t bytes_received;
+
+    char input_buffer[FORGE_CONNECTION_BUFFER_SIZE];
+    size_t input_size;
 } ForgeConnection;
 
-void forge_connection_init(ForgeConnection *connection, int fd);
+void forge_connection_init(
+    ForgeConnection *connection,
+    int fd
+);
 
-void forge_connection_close(ForgeConnection *connection);
+void forge_connection_close(
+    ForgeConnection *connection
+);
 
-int forge_connection_receive(ForgeConnection *connection);
+int forge_connection_receive(
+    ForgeConnection *connection
+);
+
+int forge_connection_get_message(
+    ForgeConnection *connection,
+    char *message,
+    size_t message_size
+);
 
 int forge_connection_send(
     ForgeConnection *connection,

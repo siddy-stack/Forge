@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/epoll.h>
 #include <unistd.h>
 
@@ -82,6 +83,10 @@ int forge_server_run(uint16_t port)
                 continue;
             }
 
+            /*
+             * The listening socket is ready.
+             * Accept every pending connection.
+             */
             if (fd == server_fd) {
                 for (;;) {
                     int client_fd =
@@ -136,6 +141,7 @@ int forge_server_run(uint16_t port)
                             &connection_manager,
                             client_fd
                         );
+
                         continue;
                     }
 
@@ -148,6 +154,10 @@ int forge_server_run(uint16_t port)
                 continue;
             }
 
+            /*
+             * Find the persistent connection associated
+             * with the file descriptor.
+             */
             ForgeConnection *connection =
                 forge_connection_manager_get(
                     &connection_manager,
@@ -160,9 +170,14 @@ int forge_server_run(uint16_t port)
                     "Connection not found: fd=%d\n",
                     fd
                 );
+
                 continue;
             }
 
+            /*
+             * Receive data into the connection's
+             * persistent input buffer.
+             */
             int result =
                 forge_connection_receive(connection);
 
@@ -199,26 +214,67 @@ int forge_server_run(uint16_t port)
                 continue;
             }
 
-            printf(
-                "Received from fd=%d: %s",
-                fd,
-                connection->buffer
-            );
+            /*
+             * Extract every complete newline-delimited
+             * message currently available in the buffer.
+             */
+            char message[FORGE_CONNECTION_BUFFER_SIZE];
 
-            if (forge_connection_send(
-                    connection,
-                    connection->buffer,
-                    connection->bytes_received
-                ) == -1) {
-                forge_event_loop_remove(
-                    &event_loop,
-                    fd
+            for (;;) {
+                int message_result =
+                    forge_connection_get_message(
+                        connection,
+                        message,
+                        sizeof(message)
+                    );
+
+                if (message_result == 0) {
+                    break;
+                }
+
+                if (message_result == -1) {
+                    fprintf(
+                        stderr,
+                        "Failed to extract message "
+                        "from connection.\n"
+                    );
+
+                    forge_event_loop_remove(
+                        &event_loop,
+                        fd
+                    );
+
+                    forge_connection_manager_remove(
+                        &connection_manager,
+                        fd
+                    );
+
+                    break;
+                }
+
+                printf(
+                    "Received from fd=%d: %s",
+                    fd,
+                    message
                 );
 
-                forge_connection_manager_remove(
-                    &connection_manager,
-                    fd
-                );
+                if (forge_connection_send(
+                        connection,
+                        message,
+                        strlen(message)
+                    ) == -1) {
+                    forge_event_loop_remove(
+                        &event_loop,
+                        fd
+                    );
+
+                    forge_connection_manager_remove(
+                        &connection_manager,
+                        fd
+                    );
+
+                    break;
+                }
             }
         }
     }

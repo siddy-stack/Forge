@@ -2,11 +2,30 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+int forge_network_set_nonblocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+
+    if (flags == -1) {
+        perror("Failed to get socket flags");
+        return -1;
+    }
+
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("Failed to set socket non-blocking");
+        return -1;
+    }
+
+    return 0;
+}
+
 
 int forge_network_create_listener(uint16_t port)
 {

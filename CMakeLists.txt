@@ -19,6 +19,7 @@ add_executable(forge
     src/connection.c
     src/event_loop.c
     src/connection_manager.c
+    src/client_handler.c
 )
 
 target_include_directories(forge

@@ -1,0 +1,3 @@
+/home/sidwashere/Projects/forge/buiild/CMakeFiles/forge.dir
+/home/sidwashere/Projects/forge/buiild/CMakeFiles/edit_cache.dir
+/home/sidwashere/Projects/forge/buiild/CMakeFiles/rebuild_cache.dir

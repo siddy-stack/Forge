@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/forge.dir/src/main.c.o CMakeFiles/forge.dir/src/server.c.o CMakeFiles/forge.dir/src/network.c.o CMakeFiles/forge.dir/src/connection.c.o CMakeFiles/forge.dir/src/event_loop.c.o CMakeFiles/forge.dir/src/connection_manager.c.o CMakeFiles/forge.dir/src/client_handler.c.o -o forge 

@@ -1,0 +1,10 @@
+#ifndef FORGE_SERVER_H
+#define FORGE_SERVER_H
+
+#include <stdint.h>
+
+#define FORGE_DEFAULT_PORT 8080
+
+int forge_server_run(uint16_t port);
+
+#endif

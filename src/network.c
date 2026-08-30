@@ -9,30 +9,16 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int forge_network_set_nonblocking(int fd)
-{
-    int flags = fcntl(fd, F_GETFL, 0);
-
-    if (flags == -1) {
-        perror("Failed to get socket flags");
-        return -1;
-    }
-
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        perror("Failed to set socket non-blocking");
-        return -1;
-    }
-
-    return 0;
-}
-
-
 int forge_network_create_listener(uint16_t port)
 {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (server_fd == -1) {
-        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+        fprintf(
+            stderr,
+            "Failed to create socket: %s\n",
+            strerror(errno)
+        );
         return -1;
     }
 
@@ -65,13 +51,21 @@ int forge_network_create_listener(uint16_t port)
             (struct sockaddr *)&address,
             sizeof(address)
         ) == -1) {
-        fprintf(stderr, "Failed to bind socket: %s\n", strerror(errno));
+        fprintf(
+            stderr,
+            "Failed to bind socket: %s\n",
+            strerror(errno)
+        );
         close(server_fd);
         return -1;
     }
 
     if (listen(server_fd, FORGE_BACKLOG) == -1) {
-        fprintf(stderr, "Failed to listen on socket: %s\n", strerror(errno));
+        fprintf(
+            stderr,
+            "Failed to listen on socket: %s\n",
+            strerror(errno)
+        );
         close(server_fd);
         return -1;
     }
@@ -91,13 +85,43 @@ int forge_network_accept_client(int server_fd)
     );
 
     if (client_fd == -1) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return -1;
+        }
+
         fprintf(
             stderr,
             "Failed to accept connection: %s\n",
             strerror(errno)
         );
+
         return -1;
     }
 
     return client_fd;
+}
+
+int forge_network_set_nonblocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+
+    if (flags == -1) {
+        fprintf(
+            stderr,
+            "Failed to get socket flags: %s\n",
+            strerror(errno)
+        );
+        return -1;
+    }
+
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        fprintf(
+            stderr,
+            "Failed to set socket non-blocking: %s\n",
+            strerror(errno)
+        );
+        return -1;
+    }
+
+    return 0;
 }

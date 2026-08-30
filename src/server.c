@@ -83,61 +83,67 @@ int forge_server_run(uint16_t port)
             }
 
             if (fd == server_fd) {
-                int client_fd = forge_network_accept_client(
-                    server_fd
-                );
+                for (;;) {
+                    int client_fd =
+                        forge_network_accept_client(
+                            server_fd
+                        );
 
-                if (client_fd == -1) {
-                    continue;
-                }
+                    if (client_fd == -1) {
+                        break;
+                    }
 
-                if (forge_network_set_nonblocking(client_fd) == -1) {
-                    close(client_fd);
-                    continue;
-                }
+                    if (forge_network_set_nonblocking(
+                            client_fd
+                        ) == -1) {
+                        close(client_fd);
+                        continue;
+                    }
 
-                ForgeConnection *connection =
-                    malloc(sizeof(*connection));
+                    ForgeConnection *connection =
+                        malloc(sizeof(*connection));
 
-                if (connection == NULL) {
-                    fprintf(
-                        stderr,
-                        "Failed to allocate connection.\n"
-                    );
-                    close(client_fd);
-                    continue;
-                }
+                    if (connection == NULL) {
+                        fprintf(
+                            stderr,
+                            "Failed to allocate connection.\n"
+                        );
 
-                forge_connection_init(
-                    connection,
-                    client_fd
-                );
+                        close(client_fd);
+                        continue;
+                    }
 
-                if (forge_connection_manager_add(
-                        &connection_manager,
-                        connection
-                    ) == -1) {
-                    forge_connection_close(connection);
-                    free(connection);
-                    continue;
-                }
-
-                if (forge_event_loop_add(
-                        &event_loop,
-                        client_fd,
-                        EPOLLIN
-                    ) == -1) {
-                    forge_connection_manager_remove(
-                        &connection_manager,
+                    forge_connection_init(
+                        connection,
                         client_fd
                     );
-                    continue;
-                }
 
-                printf(
-                    "Client connected: fd=%d\n",
-                    client_fd
-                );
+                    if (forge_connection_manager_add(
+                            &connection_manager,
+                            connection
+                        ) == -1) {
+                        forge_connection_close(connection);
+                        free(connection);
+                        continue;
+                    }
+
+                    if (forge_event_loop_add(
+                            &event_loop,
+                            client_fd,
+                            EPOLLIN
+                        ) == -1) {
+                        forge_connection_manager_remove(
+                            &connection_manager,
+                            client_fd
+                        );
+                        continue;
+                    }
+
+                    printf(
+                        "Client connected: fd=%d\n",
+                        client_fd
+                    );
+                }
 
                 continue;
             }
@@ -157,9 +163,8 @@ int forge_server_run(uint16_t port)
                 continue;
             }
 
-            int result = forge_connection_receive(
-                connection
-            );
+            int result =
+                forge_connection_receive(connection);
 
             if (result == 0) {
                 forge_event_loop_remove(

@@ -37,6 +37,33 @@ int forge_event_loop_add(
     return 0;
 }
 
+int forge_event_loop_modify(
+    ForgeEventLoop *loop,
+    int fd,
+    uint32_t events
+)
+{
+    struct epoll_event event = {
+        .events = events,
+        .data.fd = fd,
+    };
+
+    if (epoll_ctl(
+            loop->fd,
+            EPOLL_CTL_MOD,
+            fd,
+            &event
+        ) == -1) {
+        perror(
+            "Failed to modify file descriptor in epoll"
+        );
+
+        return -1;
+    }
+
+    return 0;
+}
+
 int forge_event_loop_remove(
     ForgeEventLoop *loop,
     int fd

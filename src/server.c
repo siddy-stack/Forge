@@ -42,9 +42,14 @@ int forge_server_run(uint16_t port)
 
     ForgeConnectionManager connection_manager;
 
-    forge_connection_manager_init(&connection_manager);
+    forge_connection_manager_init(
+        &connection_manager
+    );
 
-    printf("Forge server listening on port %u\n", port);
+    printf(
+        "Forge server listening on port %u\n",
+        port
+    );
 
     for (;;) {
         int event_count = forge_event_loop_wait(
@@ -62,11 +67,15 @@ int forge_server_run(uint16_t port)
                 i
             );
 
-            uint32_t events = forge_event_loop_get_events(
-                &event_loop,
-                i
-            );
+            uint32_t events =
+                forge_event_loop_get_events(
+                    &event_loop,
+                    i
+                );
 
+            /*
+             * Handle errors and closed connections.
+             */
             if (events & (EPOLLERR | EPOLLHUP)) {
                 if (fd != server_fd) {
                     forge_event_loop_remove(
@@ -85,7 +94,9 @@ int forge_server_run(uint16_t port)
 
             /*
              * The listening socket is ready.
-             * Accept every pending connection.
+             *
+             * Accept every connection currently
+             * waiting in the kernel's accept queue.
              */
             if (fd == server_fd) {
                 for (;;) {
@@ -127,7 +138,10 @@ int forge_server_run(uint16_t port)
                             &connection_manager,
                             connection
                         ) == -1) {
-                        forge_connection_close(connection);
+                        forge_connection_close(
+                            connection
+                        );
+
                         free(connection);
                         continue;
                     }
@@ -156,7 +170,7 @@ int forge_server_run(uint16_t port)
 
             /*
              * Find the persistent connection associated
-             * with the file descriptor.
+             * with this file descriptor.
              */
             ForgeConnection *connection =
                 forge_connection_manager_get(
@@ -175,70 +189,150 @@ int forge_server_run(uint16_t port)
             }
 
             /*
-             * Receive data into the connection's
-             * persistent input buffer.
+             * Handle incoming data.
              */
-            int result =
-                forge_connection_receive(connection);
+            if (events & EPOLLIN) {
+                int result =
+                    forge_connection_receive(
+                        connection
+                    );
 
-            if (result == 0) {
-                forge_event_loop_remove(
-                    &event_loop,
-                    fd
-                );
+                if (result == 0) {
+                    forge_event_loop_remove(
+                        &event_loop,
+                        fd
+                    );
 
-                forge_connection_manager_remove(
-                    &connection_manager,
-                    fd
-                );
+                    forge_connection_manager_remove(
+                        &connection_manager,
+                        fd
+                    );
 
-                printf(
-                    "Client disconnected: fd=%d\n",
-                    fd
-                );
+                    printf(
+                        "Client disconnected: fd=%d\n",
+                        fd
+                    );
 
-                continue;
-            }
+                    continue;
+                }
 
-            if (result == -1) {
-                forge_event_loop_remove(
-                    &event_loop,
-                    fd
-                );
+                if (result == -1) {
+                    forge_event_loop_remove(
+                        &event_loop,
+                        fd
+                    );
 
-                forge_connection_manager_remove(
-                    &connection_manager,
-                    fd
-                );
+                    forge_connection_manager_remove(
+                        &connection_manager,
+                        fd
+                    );
 
-                continue;
+                    continue;
+                }
+
+                /*
+                 * Extract every complete message
+                 * currently available in the input buffer.
+                 */
+                char message[
+                    FORGE_CONNECTION_BUFFER_SIZE
+                ];
+
+                for (;;) {
+                    int message_result =
+                        forge_connection_get_message(
+                            connection,
+                            message,
+                            sizeof(message)
+                        );
+
+                    if (message_result == 0) {
+                        break;
+                    }
+
+                    if (message_result == -1) {
+                        fprintf(
+                            stderr,
+                            "Failed to extract message "
+                            "from connection.\n"
+                        );
+
+                        forge_event_loop_remove(
+                            &event_loop,
+                            fd
+                        );
+
+                        forge_connection_manager_remove(
+                            &connection_manager,
+                            fd
+                        );
+
+                        break;
+                    }
+
+                    printf(
+                        "Received from fd=%d: %s",
+                        fd,
+                        message
+                    );
+
+                    /*
+                     * Queue the response instead of
+                     * sending it directly.
+                     */
+                    if (forge_connection_queue_send(
+                            connection,
+                            message,
+                            strlen(message)
+                        ) == -1) {
+                        forge_event_loop_remove(
+                            &event_loop,
+                            fd
+                        );
+
+                        forge_connection_manager_remove(
+                            &connection_manager,
+                            fd
+                        );
+
+                        break;
+                    }
+
+                    /*
+                     * The connection now has data waiting
+                     * to be sent, so ask epoll to notify
+                     * us when the socket becomes writable.
+                     */
+                    if (forge_event_loop_modify(
+                            &event_loop,
+                            fd,
+                            EPOLLIN | EPOLLOUT
+                        ) == -1) {
+                        forge_event_loop_remove(
+                            &event_loop,
+                            fd
+                        );
+
+                        forge_connection_manager_remove(
+                            &connection_manager,
+                            fd
+                        );
+
+                        break;
+                    }
+                }
             }
 
             /*
-             * Extract every complete newline-delimited
-             * message currently available in the buffer.
+             * Handle outgoing data.
              */
-            char message[FORGE_CONNECTION_BUFFER_SIZE];
-
-            for (;;) {
-                int message_result =
-                    forge_connection_get_message(
-                        connection,
-                        message,
-                        sizeof(message)
+            if (events & EPOLLOUT) {
+                int result =
+                    forge_connection_flush(
+                        connection
                     );
 
-                if (message_result == 0) {
-                    break;
-                }
-
-                if (message_result == -1) {
-                    fprintf(
-                        stderr,
-                        "Failed to extract message "
-                        "from connection.\n"
-                    );
-
+                if (result == -1) {
                     forge_event_loop_remove(
                         &event_loop,
                         fd
@@ -249,31 +343,36 @@ int forge_server_run(uint16_t port)
                         fd
                     );
 
-                    break;
+                    continue;
                 }
 
-                printf(
-                    "Received from fd=%d: %s",
-                    fd,
-                    message
-                );
+                /*
+                 * Output buffer is empty.
+                 *
+                 * Stop monitoring EPOLLOUT so that epoll
+                 * doesn't continuously report the socket
+                 * as writable when we have nothing to send.
+                 */
+                if (!forge_connection_has_pending_output(
+                        connection
+                    )) {
+                    if (forge_event_loop_modify(
+                            &event_loop,
+                            fd,
+                            EPOLLIN
+                        ) == -1) {
+                        forge_event_loop_remove(
+                            &event_loop,
+                            fd
+                        );
 
-                if (forge_connection_send(
-                        connection,
-                        message,
-                        strlen(message)
-                    ) == -1) {
-                    forge_event_loop_remove(
-                        &event_loop,
-                        fd
-                    );
+                        forge_connection_manager_remove(
+                            &connection_manager,
+                            fd
+                        );
 
-                    forge_connection_manager_remove(
-                        &connection_manager,
-                        fd
-                    );
-
-                    break;
+                        continue;
+                    }
                 }
             }
         }

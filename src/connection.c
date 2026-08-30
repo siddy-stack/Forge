@@ -12,7 +12,11 @@ void forge_connection_init(
 )
 {
     connection->fd = fd;
+
     connection->input_size = 0;
+
+    connection->output_size = 0;
+    connection->output_offset = 0;
 }
 
 void forge_connection_close(
@@ -35,6 +39,7 @@ int forge_connection_receive(
             stderr,
             "Connection input buffer is full.\n"
         );
+
         return -1;
     }
 
@@ -56,7 +61,8 @@ int forge_connection_receive(
     }
 
     if (bytes_received == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (errno == EAGAIN ||
+            errno == EWOULDBLOCK) {
             return 1;
         }
 
@@ -65,6 +71,7 @@ int forge_connection_receive(
             "Failed to receive data: %s\n",
             strerror(errno)
         );
+
         return -1;
     }
 
@@ -95,9 +102,12 @@ int forge_connection_get_message(
     }
 
     size_t message_length =
-        (size_t)(newline - connection->input_buffer) + 1;
+        (size_t)(
+            newline -
+            connection->input_buffer
+        ) + 1;
 
-    if (message_length > message_size) {
+    if (message_length >= message_size) {
         return -1;
     }
 
@@ -110,11 +120,13 @@ int forge_connection_get_message(
     message[message_length] = '\0';
 
     size_t remaining =
-        connection->input_size - message_length;
+        connection->input_size -
+        message_length;
 
     memmove(
         connection->input_buffer,
-        connection->input_buffer + message_length,
+        connection->input_buffer +
+            message_length,
         remaining
     );
 
@@ -127,27 +139,84 @@ int forge_connection_get_message(
     return 1;
 }
 
-int forge_connection_send(
+int forge_connection_queue_send(
     ForgeConnection *connection,
     const char *data,
     size_t length
 )
 {
-    ssize_t bytes_sent = send(
-        connection->fd,
-        data,
-        length,
-        0
-    );
-
-    if (bytes_sent == -1) {
+    if (length >
+        FORGE_CONNECTION_BUFFER_SIZE -
+        connection->output_size) {
         fprintf(
             stderr,
-            "Failed to send data: %s\n",
-            strerror(errno)
+            "Connection output buffer is full.\n"
         );
+
         return -1;
     }
 
-    return (bytes_sent == (ssize_t)length) ? 0 : -1;
+    memcpy(
+        connection->output_buffer +
+            connection->output_size,
+        data,
+        length
+    );
+
+    connection->output_size += length;
+
+    return 0;
+}
+
+int forge_connection_flush(
+    ForgeConnection *connection
+)
+{
+    while (
+        connection->output_offset <
+        connection->output_size
+    ) {
+        size_t remaining =
+            connection->output_size -
+            connection->output_offset;
+
+        ssize_t bytes_sent = send(
+            connection->fd,
+            connection->output_buffer +
+                connection->output_offset,
+            remaining,
+            0
+        );
+
+        if (bytes_sent == -1) {
+            if (errno == EAGAIN ||
+                errno == EWOULDBLOCK) {
+                return 1;
+            }
+
+            fprintf(
+                stderr,
+                "Failed to send data: %s\n",
+                strerror(errno)
+            );
+
+            return -1;
+        }
+
+        connection->output_offset +=
+            (size_t)bytes_sent;
+    }
+
+    connection->output_size = 0;
+    connection->output_offset = 0;
+
+    return 0;
+}
+
+int forge_connection_has_pending_output(
+    const ForgeConnection *connection
+)
+{
+    return connection->output_offset <
+           connection->output_size;
 }

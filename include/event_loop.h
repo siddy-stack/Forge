@@ -14,6 +14,12 @@ typedef struct {
 
 int forge_event_loop_init(ForgeEventLoop *loop);
 
+int forge_event_loop_modify(
+    ForgeEventLoop *loop,
+    int fd,
+    uint32_t events
+);
+
 int forge_event_loop_add(
     ForgeEventLoop *loop,
     int fd,

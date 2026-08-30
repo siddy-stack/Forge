@@ -10,6 +10,10 @@ typedef struct {
 
     char input_buffer[FORGE_CONNECTION_BUFFER_SIZE];
     size_t input_size;
+
+    char output_buffer[FORGE_CONNECTION_BUFFER_SIZE];
+    size_t output_size;
+    size_t output_offset;
 } ForgeConnection;
 
 void forge_connection_init(
@@ -31,10 +35,18 @@ int forge_connection_get_message(
     size_t message_size
 );
 
-int forge_connection_send(
+int forge_connection_queue_send(
     ForgeConnection *connection,
     const char *data,
     size_t length
+);
+
+int forge_connection_flush(
+    ForgeConnection *connection
+);
+
+int forge_connection_has_pending_output(
+    const ForgeConnection *connection
 );
 
 #endif

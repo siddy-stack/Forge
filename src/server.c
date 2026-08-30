@@ -1,9 +1,8 @@
 #include "server.h"
 #include "network.h"
+#include "connection.h"
 
 #include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 int forge_server_run(uint16_t port)
@@ -25,50 +24,34 @@ int forge_server_run(uint16_t port)
 
         printf("Client connected.\n");
 
-        char buffer[1024];
+        ForgeConnection connection;
+
+        forge_connection_init(&connection, client_fd);
 
         for (;;) {
-            ssize_t bytes_received = recv(
-                client_fd,
-                buffer,
-                sizeof(buffer) - 1,
-                0
-            );
+            int result = forge_connection_receive(&connection);
 
-            if (bytes_received == 0) {
+            if (result == 0) {
                 printf("Client disconnected.\n");
                 break;
             }
 
-            if (bytes_received == -1) {
-                fprintf(
-                    stderr,
-                    "Failed to receive data.\n"
-                );
+            if (result == -1) {
                 break;
             }
 
-            buffer[bytes_received] = '\0';
+            printf("Received: %s", connection.buffer);
 
-            printf("Received: %s", buffer);
-
-            ssize_t bytes_sent = send(
-                client_fd,
-                buffer,
-                (size_t)bytes_received,
-                0
-            );
-
-            if (bytes_sent == -1) {
-                fprintf(
-                    stderr,
-                    "Failed to send response.\n"
-                );
+            if (forge_connection_send(
+                    &connection,
+                    connection.buffer,
+                    connection.bytes_received
+                ) == -1) {
                 break;
             }
         }
 
-        close(client_fd);
+        forge_connection_close(&connection);
     }
 
     close(server_fd);

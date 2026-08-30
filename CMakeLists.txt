@@ -16,6 +16,7 @@ add_executable(forge
     src/main.c
     src/server.c
     src/network.c
+    src/connection.c
 )
 
 target_include_directories(forge

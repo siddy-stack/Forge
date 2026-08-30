@@ -1,12 +1,99 @@
+---
+
+# `.gitignore`
+```gitignore
+# ==============================
+# Build
+# ==============================
+
 build/
-out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+
+# ==============================
+# Compiled files
+# ==============================
+
 *.o
+*.obj
 *.a
 *.so
-*.d
-compile_commands.json
-.vscode/
-.idea/
-*.log
+*.dylib
+*.dll
+*.exe
+*.out
+
+
+# ==============================
+# Debugging
+# ==============================
+
 core
 core.*
+*.core
+gdb_history
+
+
+# ==============================
+# IDE - VS Code
+# ==============================
+
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+
+# ==============================
+# Visual Studio
+# ==============================
+
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+
+# ==============================
+# CLion / JetBrains
+# ==============================
+
+.idea/
+*.iml
+
+
+# ==============================
+# OS files
+# ==============================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+
+# ==============================
+# Logs
+# ==============================
+
+*.log
+logs/
+
+
+# ==============================
+# Temporary files
+# ==============================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*~

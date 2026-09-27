@@ -4,20 +4,27 @@
 #include <stdint.h>
 #include <sys/epoll.h>
 
-#define FORGE_MAX_EVENTS 64
+#define FORGE_MAX_EVENTS 1024
 
 typedef struct {
     int fd;
+    uint32_t events;
+} ForgeEvent;
+
+typedef struct {
+    int fd;
+
     struct epoll_event events[FORGE_MAX_EVENTS];
+
     int event_count;
 } ForgeEventLoop;
 
-int forge_event_loop_init(ForgeEventLoop *loop);
+int forge_event_loop_init(
+    ForgeEventLoop *loop
+);
 
-int forge_event_loop_modify(
-    ForgeEventLoop *loop,
-    int fd,
-    uint32_t events
+void forge_event_loop_destroy(
+    ForgeEventLoop *loop
 );
 
 int forge_event_loop_add(
@@ -31,21 +38,21 @@ int forge_event_loop_remove(
     int fd
 );
 
+int forge_event_loop_modify(
+    ForgeEventLoop *loop,
+    int fd,
+    uint32_t events
+);
+
 int forge_event_loop_wait(
     ForgeEventLoop *loop,
-    int timeout_ms
+    int timeout
 );
 
-int forge_event_loop_get_fd(
-    const ForgeEventLoop *loop,
-    int index
+int forge_event_loop_get_event(
+    ForgeEventLoop *loop,
+    int index,
+    ForgeEvent *event
 );
-
-uint32_t forge_event_loop_get_events(
-    const ForgeEventLoop *loop,
-    int index
-);
-
-void forge_event_loop_destroy(ForgeEventLoop *loop);
 
 #endif

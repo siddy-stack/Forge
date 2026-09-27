@@ -62,20 +62,22 @@ int forge_server_run(uint16_t port)
         }
 
         for (int i = 0; i < event_count; i++) {
-            int fd = forge_event_loop_get_fd(
-                &event_loop,
-                i
-            );
+    ForgeEvent event;
 
-            uint32_t events =
-                forge_event_loop_get_events(
-                    &event_loop,
-                    i
-                );
+    if (forge_event_loop_get_event(
+            &event_loop,
+            i,
+            &event
+        ) == -1) {
+        continue;
+    }
 
-            /*
-             * Handle errors and closed connections.
-             */
+    int fd = event.fd;
+    uint32_t events = event.events;
+
+    /*
+     * Handle errors and closed connections.
+     */
             if (events & (EPOLLERR | EPOLLHUP)) {
                 if (fd != server_fd) {
                     forge_event_loop_remove(

@@ -137,3 +137,23 @@ void forge_event_loop_destroy(ForgeEventLoop *loop)
 
     loop->event_count = 0;
 }
+
+int forge_event_loop_get_event(
+    ForgeEventLoop *loop,
+    int index,
+    ForgeEvent *event
+)
+{
+    if (index < 0 || index >= FORGE_MAX_EVENTS) {
+        return -1;
+    }
+
+    if (event == NULL) {
+        return -1;
+    }
+
+    event->fd = loop->events[index].data.fd;
+    event->events = loop->events[index].events;
+
+    return 0;
+}

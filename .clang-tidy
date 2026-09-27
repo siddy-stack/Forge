@@ -1,0 +1,21 @@
+Checks: >
+  bugprone-*,
+  cert-*,
+  -cert-err33-c,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-macro-to-enum,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-init-variables,
+  performance-*,
+  portability-*,
+  readability-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+
+WarningsAsErrors: ""
+
+HeaderFilterRegex: ".*(include|src)/.*"
+
+FormatStyle: file

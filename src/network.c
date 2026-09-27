@@ -11,32 +11,24 @@
 
 int forge_network_create_listener(uint16_t port)
 {
-    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int server_file_descriptor = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (server_fd == -1) {
-        fprintf(
-            stderr,
-            "Failed to create socket: %s\n",
-            strerror(errno)
-        );
+    if (server_file_descriptor == -1)
+    {
+        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+
         return -1;
     }
 
     int reuse_address = 1;
 
-    if (setsockopt(
-            server_fd,
-            SOL_SOCKET,
-            SO_REUSEADDR,
-            &reuse_address,
-            sizeof(reuse_address)
-        ) == -1) {
-        fprintf(
-            stderr,
-            "Failed to configure socket: %s\n",
-            strerror(errno)
-        );
-        close(server_fd);
+    if (setsockopt(server_file_descriptor, SOL_SOCKET, SO_REUSEADDR,
+                   &reuse_address, sizeof(reuse_address)) == -1)
+    {
+        fprintf(stderr, "Failed to configure socket: %s\n", strerror(errno));
+
+        close(server_file_descriptor);
+
         return -1;
     }
 
@@ -46,80 +38,69 @@ int forge_network_create_listener(uint16_t port)
         .sin_port = htons(port),
     };
 
-    if (bind(
-            server_fd,
-            (struct sockaddr *)&address,
-            sizeof(address)
-        ) == -1) {
-        fprintf(
-            stderr,
-            "Failed to bind socket: %s\n",
-            strerror(errno)
-        );
-        close(server_fd);
+    if (bind(server_file_descriptor, (struct sockaddr *)&address,
+             sizeof(address)) == -1)
+    {
+        fprintf(stderr, "Failed to bind socket: %s\n", strerror(errno));
+
+        close(server_file_descriptor);
+
         return -1;
     }
 
-    if (listen(server_fd, FORGE_BACKLOG) == -1) {
-        fprintf(
-            stderr,
-            "Failed to listen on socket: %s\n",
-            strerror(errno)
-        );
-        close(server_fd);
+    if (listen(server_file_descriptor, FORGE_BACKLOG) == -1)
+    {
+        fprintf(stderr, "Failed to listen on socket: %s\n", strerror(errno));
+
+        close(server_file_descriptor);
+
         return -1;
     }
 
-    return server_fd;
+    return server_file_descriptor;
 }
 
-int forge_network_accept_client(int server_fd)
+int forge_network_accept_client(int server_file_descriptor)
 {
     struct sockaddr_in client_address;
+
     socklen_t client_length = sizeof(client_address);
 
-    int client_fd = accept(
-        server_fd,
-        (struct sockaddr *)&client_address,
-        &client_length
-    );
+    int client_file_descriptor =
+        accept(server_file_descriptor, (struct sockaddr *)&client_address,
+               &client_length);
 
-    if (client_fd == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    if (client_file_descriptor == -1)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+        {
             return -1;
         }
 
-        fprintf(
-            stderr,
-            "Failed to accept connection: %s\n",
-            strerror(errno)
-        );
+        fprintf(stderr, "Failed to accept connection: %s\n", strerror(errno));
 
         return -1;
     }
 
-    return client_fd;
+    return client_file_descriptor;
 }
 
-int forge_network_set_nonblocking(int fd)
+int forge_network_set_nonblocking(int file_descriptor)
 {
-    int flags = fcntl(fd, F_GETFL, 0);
+    int flags = fcntl(file_descriptor, F_GETFL, 0);
 
-    if (flags == -1) {
-        fprintf(
-            stderr,
-            "Failed to get socket flags: %s\n",
-            strerror(errno)
-        );
+    if (flags == -1)
+    {
+        fprintf(stderr, "Failed to get socket flags: %s\n", strerror(errno));
+
         return -1;
     }
 
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        fprintf(
-            stderr,
-            "Failed to set socket non-blocking: %s\n",
-            strerror(errno)
-        );
+    if (fcntl(file_descriptor, F_SETFL, flags | O_NONBLOCK) == -1)
+    {
+        fprintf(stderr, "Failed to set socket non-blocking: %s\n",
+                strerror(errno));
+
         return -1;
     }
 

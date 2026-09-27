@@ -5,16 +5,12 @@
 #include "connection_manager.h"
 #include "event_loop.h"
 
-int forge_client_handle_read(
-    ForgeEventLoop *event_loop,
-    ForgeConnectionManager *connection_manager,
-    ForgeConnection *connection
-);
+int forge_client_handle_read(ForgeEventLoop *event_loop,
+                             ForgeConnectionManager *connection_manager,
+                             ForgeConnection *connection);
 
-int forge_client_handle_write(
-    ForgeEventLoop *event_loop,
-    ForgeConnectionManager *connection_manager,
-    ForgeConnection *connection
-);
+int forge_client_handle_write(ForgeEventLoop *event_loop,
+                              ForgeConnectionManager *connection_manager,
+                              ForgeConnection *connection);
 
 #endif

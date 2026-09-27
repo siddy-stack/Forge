@@ -5,17 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
-static size_t encode_message(
-    const ForgeMessage *message,
-    uint8_t *buffer,
-    size_t buffer_size
-)
+static size_t encode_message(const ForgeMessage *message, uint8_t *buffer,
+                             size_t buffer_size)
 {
-    int result = forge_protocol_encode(
-        message,
-        buffer,
-        buffer_size
-    );
+    int result = forge_protocol_encode(message, buffer, buffer_size);
 
     assert(result > 0);
 
@@ -34,26 +27,15 @@ static void test_encode_decode(void)
         .payload_length = sizeof(payload) - 1,
     };
 
-    uint8_t buffer[
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    ];
+    uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD];
 
-    size_t encoded_size = encode_message(
-        &original,
-        buffer,
-        sizeof(buffer)
-    );
+    size_t encoded_size = encode_message(&original, buffer, sizeof(buffer));
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        encoded_size,
-        &decoded,
-        &bytes_consumed
-    );
+    int result =
+        forge_protocol_decode(buffer, encoded_size, &decoded, &bytes_consumed);
 
     assert(result == 1);
     assert(bytes_consumed == encoded_size);
@@ -62,16 +44,10 @@ static void test_encode_decode(void)
     assert(decoded.flags == original.flags);
     assert(decoded.request_id == original.request_id);
 
-    assert(
-        decoded.payload_length ==
-        original.payload_length
-    );
+    assert(decoded.payload_length == original.payload_length);
 
-    assert(memcmp(
-        decoded.payload,
-        original.payload,
-        original.payload_length
-    ) == 0);
+    assert(memcmp(decoded.payload, original.payload, original.payload_length) ==
+           0);
 }
 
 static void test_incomplete_message(void)
@@ -86,26 +62,15 @@ static void test_incomplete_message(void)
         .payload_length = sizeof(payload) - 1,
     };
 
-    uint8_t buffer[
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    ];
+    uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD];
 
-    size_t encoded_size = encode_message(
-        &message,
-        buffer,
-        sizeof(buffer)
-    );
+    size_t encoded_size = encode_message(&message, buffer, sizeof(buffer));
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        encoded_size - 1,
-        &decoded,
-        &bytes_consumed
-    );
+    int result = forge_protocol_decode(buffer, encoded_size - 1, &decoded,
+                                       &bytes_consumed);
 
     assert(result == 0);
 }
@@ -122,28 +87,17 @@ static void test_invalid_magic(void)
         .payload_length = sizeof(payload) - 1,
     };
 
-    uint8_t buffer[
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    ];
+    uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD];
 
-    size_t encoded_size = encode_message(
-        &message,
-        buffer,
-        sizeof(buffer)
-    );
+    size_t encoded_size = encode_message(&message, buffer, sizeof(buffer));
 
     buffer[0] ^= 0xFF;
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        encoded_size,
-        &decoded,
-        &bytes_consumed
-    );
+    int result =
+        forge_protocol_decode(buffer, encoded_size, &decoded, &bytes_consumed);
 
     assert(result == -1);
 }
@@ -160,26 +114,15 @@ static void test_empty_payload(void)
 
     uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE];
 
-    size_t encoded_size = encode_message(
-        &message,
-        buffer,
-        sizeof(buffer)
-    );
+    size_t encoded_size = encode_message(&message, buffer, sizeof(buffer));
 
-    assert(
-        encoded_size ==
-        FORGE_PROTOCOL_HEADER_SIZE
-    );
+    assert(encoded_size == FORGE_PROTOCOL_HEADER_SIZE);
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        encoded_size,
-        &decoded,
-        &bytes_consumed
-    );
+    int result =
+        forge_protocol_decode(buffer, encoded_size, &decoded, &bytes_consumed);
 
     assert(result == 1);
     assert(decoded.type == FORGE_MESSAGE_PONG);
@@ -192,11 +135,7 @@ static void test_maximum_payload(void)
 {
     uint8_t payload[FORGE_PROTOCOL_MAX_PAYLOAD];
 
-    memset(
-        payload,
-        0xAB,
-        sizeof(payload)
-    );
+    memset(payload, 0xAB, sizeof(payload));
 
     ForgeMessage message = {
         .type = FORGE_MESSAGE_PING,
@@ -206,80 +145,43 @@ static void test_maximum_payload(void)
         .payload_length = FORGE_PROTOCOL_MAX_PAYLOAD,
     };
 
-    uint8_t buffer[
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    ];
+    uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD];
 
-    size_t encoded_size = encode_message(
-        &message,
-        buffer,
-        sizeof(buffer)
-    );
+    size_t encoded_size = encode_message(&message, buffer, sizeof(buffer));
 
-    assert(
-        encoded_size ==
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    );
+    assert(encoded_size ==
+           FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD);
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        encoded_size,
-        &decoded,
-        &bytes_consumed
-    );
+    int result =
+        forge_protocol_decode(buffer, encoded_size, &decoded, &bytes_consumed);
 
     assert(result == 1);
 
-    assert(
-        decoded.payload_length ==
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    );
+    assert(decoded.payload_length == FORGE_PROTOCOL_MAX_PAYLOAD);
 
-    assert(
-        memcmp(
-            decoded.payload,
-            payload,
-            FORGE_PROTOCOL_MAX_PAYLOAD
-        ) == 0
-    );
+    assert(memcmp(decoded.payload, payload, FORGE_PROTOCOL_MAX_PAYLOAD) == 0);
 }
 
 static void test_payload_too_large(void)
 {
-    uint8_t payload[
-        FORGE_PROTOCOL_MAX_PAYLOAD + 1
-    ];
+    uint8_t payload[FORGE_PROTOCOL_MAX_PAYLOAD + 1];
 
-    memset(
-        payload,
-        0xCD,
-        sizeof(payload)
-    );
+    memset(payload, 0xCD, sizeof(payload));
 
     ForgeMessage message = {
         .type = FORGE_MESSAGE_PING,
         .flags = 0,
         .request_id = 400,
         .payload = payload,
-        .payload_length =
-            FORGE_PROTOCOL_MAX_PAYLOAD + 1,
+        .payload_length = FORGE_PROTOCOL_MAX_PAYLOAD + 1,
     };
 
-    uint8_t buffer[
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD + 1
-    ];
+    uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD + 1];
 
-    int result = forge_protocol_encode(
-        &message,
-        buffer,
-        sizeof(buffer)
-    );
+    int result = forge_protocol_encode(&message, buffer, sizeof(buffer));
 
     assert(result == -1);
 }
@@ -296,16 +198,9 @@ static void test_malformed_payload_length(void)
         .payload_length = sizeof(payload) - 1,
     };
 
-    uint8_t buffer[
-        FORGE_PROTOCOL_HEADER_SIZE +
-        FORGE_PROTOCOL_MAX_PAYLOAD
-    ];
+    uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD];
 
-    size_t encoded_size = encode_message(
-        &message,
-        buffer,
-        sizeof(buffer)
-    );
+    size_t encoded_size = encode_message(&message, buffer, sizeof(buffer));
 
     /*
      * Set the payload length to one byte beyond
@@ -313,26 +208,15 @@ static void test_malformed_payload_length(void)
      *
      * Payload length occupies bytes 6-9.
      */
-    uint32_t invalid_length =
-        htonl(
-            FORGE_PROTOCOL_MAX_PAYLOAD + 1
-        );
+    uint32_t invalid_length = htonl(FORGE_PROTOCOL_MAX_PAYLOAD + 1);
 
-    memcpy(
-        buffer + 6,
-        &invalid_length,
-        sizeof(invalid_length)
-    );
+    memcpy(buffer + 6, &invalid_length, sizeof(invalid_length));
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        encoded_size,
-        &decoded,
-        &bytes_consumed
-    );
+    int result =
+        forge_protocol_decode(buffer, encoded_size, &decoded, &bytes_consumed);
 
     assert(result == -1);
 }
@@ -341,21 +225,13 @@ static void test_incomplete_header(void)
 {
     uint8_t buffer[FORGE_PROTOCOL_HEADER_SIZE - 1];
 
-    memset(
-        buffer,
-        0,
-        sizeof(buffer)
-    );
+    memset(buffer, 0, sizeof(buffer));
 
     ForgeMessage decoded;
     size_t bytes_consumed = 0;
 
-    int result = forge_protocol_decode(
-        buffer,
-        sizeof(buffer),
-        &decoded,
-        &bytes_consumed
-    );
+    int result = forge_protocol_decode(buffer, sizeof(buffer), &decoded,
+                                       &bytes_consumed);
 
     assert(result == 0);
 }

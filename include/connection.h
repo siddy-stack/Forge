@@ -5,10 +5,14 @@
 
 #include <stddef.h>
 
-#define FORGE_CONNECTION_BUFFER_SIZE \
-    (FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD)
+enum
+{
+    FORGE_CONNECTION_BUFFER_SIZE =
+        FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD
+};
 
-typedef struct {
+typedef struct
+{
     int fd;
 
     char input_buffer[FORGE_CONNECTION_BUFFER_SIZE];
@@ -19,47 +23,26 @@ typedef struct {
     size_t output_offset;
 } ForgeConnection;
 
-void forge_connection_init(
-    ForgeConnection *connection,
-    int fd
-);
+void forge_connection_init(ForgeConnection *connection, int file_descriptor);
 
-void forge_connection_close(
-    ForgeConnection *connection
-);
+void forge_connection_close(ForgeConnection *connection);
 
-int forge_connection_receive(
-    ForgeConnection *connection
-);
+int forge_connection_receive(ForgeConnection *connection);
 
-int forge_connection_get_message(
-    ForgeConnection *connection,
-    ForgeMessage *message,
-    size_t *bytes_consumed
-);
+int forge_connection_get_message(const ForgeConnection *connection,
+                                 ForgeMessage *message, size_t *bytes_consumed);
 
-int forge_connection_consume_message(
-    ForgeConnection *connection,
-    size_t bytes_consumed
-);
+int forge_connection_consume_message(ForgeConnection *connection,
+                                     size_t bytes_consumed);
 
-int forge_connection_queue_send(
-    ForgeConnection *connection,
-    const void *data,
-    size_t length
-);
+int forge_connection_queue_send(ForgeConnection *connection, const void *data,
+                                size_t length);
 
-int forge_connection_queue_message(
-    ForgeConnection *connection,
-    const ForgeMessage *message
-);
+int forge_connection_queue_message(ForgeConnection *connection,
+                                   const ForgeMessage *message);
 
-int forge_connection_flush(
-    ForgeConnection *connection
-);
+int forge_connection_flush(ForgeConnection *connection);
 
-int forge_connection_has_pending_output(
-    const ForgeConnection *connection
-);
+int forge_connection_has_pending_output(const ForgeConnection *connection);
 
 #endif

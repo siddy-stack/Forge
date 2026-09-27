@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 
-#define FORGE_DEFAULT_PORT 8080
+enum
+{
+    FORGE_DEFAULT_PORT = 8080
+};
 
 int forge_server_run(uint16_t port);
 

@@ -25,6 +25,7 @@ add_executable(forge
     src/event_loop.c
     src/connection_manager.c
     src/client_handler.c
+    src/message_dispatcher.c
     src/protocol.c
 )
 
@@ -89,4 +90,29 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         -Wconversion
         -Wshadow
     )
+endif()
+
+# ============================================================
+# Sanitizers
+# ============================================================
+
+option(
+    FORGE_ENABLE_SANITIZERS
+    "Enable AddressSanitizer and UndefinedBehaviorSanitizer"
+    OFF
+)
+
+if(FORGE_ENABLE_SANITIZERS)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+
+        target_compile_options(forge PRIVATE
+            -fsanitize=address,undefined
+            -fno-omit-frame-pointer
+        )
+
+        target_link_options(forge PRIVATE
+            -fsanitize=address,undefined
+        )
+
+    endif()
 endif()

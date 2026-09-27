@@ -188,7 +188,10 @@ int forge_server_run(uint16_t port)
             }
 
             /*
-             * Handle incoming data.
+            * Handle incoming data.
+            *
+            * The read handler may close and free the connection.
+            * If that happens, stop processing this epoll event.
              */
             if (events & EPOLLIN) {
                 if (forge_client_handle_read(
@@ -199,6 +202,20 @@ int forge_server_run(uint16_t port)
                     continue;
                 }
             }
+             /*
+            * The connection may have been removed by the
+            * read handler. Verify that it still exists
+            * before handling writable events.
+            */
+            connection = forge_connection_manager_get(
+                &connection_manager,
+            fd
+            );
+
+            if (connection == NULL) {
+            continue;
+             }
+
 
             /*
              * Handle outgoing data.

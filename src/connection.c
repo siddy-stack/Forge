@@ -1,5 +1,7 @@
 #include "connection.h"
 
+#include "protocol.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,7 +36,7 @@ int forge_connection_receive(
 )
 {
     if (connection->input_size >=
-        FORGE_CONNECTION_BUFFER_SIZE - 1) {
+        FORGE_CONNECTION_BUFFER_SIZE) {
         fprintf(
             stderr,
             "Connection input buffer is full.\n"
@@ -45,8 +47,7 @@ int forge_connection_receive(
 
     size_t available =
         FORGE_CONNECTION_BUFFER_SIZE -
-        connection->input_size -
-        1;
+        connection->input_size;
 
     ssize_t bytes_received = recv(
         connection->fd,
@@ -78,73 +79,68 @@ int forge_connection_receive(
     connection->input_size +=
         (size_t)bytes_received;
 
-    connection->input_buffer[
-        connection->input_size
-    ] = '\0';
-
     return 1;
 }
 
 int forge_connection_get_message(
     ForgeConnection *connection,
-    char *message,
-    size_t message_size
+    ForgeMessage *message,
+    size_t *bytes_consumed
 )
 {
-    char *newline = memchr(
-        connection->input_buffer,
-        '\n',
-        connection->input_size
-    );
-
-    if (newline == NULL) {
-        return 0;
-    }
-
-    size_t message_length =
-        (size_t)(
-            newline -
-            connection->input_buffer
-        ) + 1;
-
-    if (message_length >= message_size) {
+    if (connection == NULL ||
+        message == NULL ||
+        bytes_consumed == NULL) {
         return -1;
     }
 
-    memcpy(
+    return forge_protocol_decode(
+        (const uint8_t *)connection->input_buffer,
+        connection->input_size,
         message,
-        connection->input_buffer,
-        message_length
+        bytes_consumed
     );
+}
 
-    message[message_length] = '\0';
+int forge_connection_consume_message(
+    ForgeConnection *connection,
+    size_t bytes_consumed
+)
+{
+    if (connection == NULL) {
+        return -1;
+    }
+
+    if (bytes_consumed > connection->input_size) {
+        return -1;
+    }
 
     size_t remaining =
         connection->input_size -
-        message_length;
+        bytes_consumed;
 
     memmove(
         connection->input_buffer,
         connection->input_buffer +
-            message_length,
+            bytes_consumed,
         remaining
     );
 
     connection->input_size = remaining;
 
-    connection->input_buffer[
-        connection->input_size
-    ] = '\0';
-
-    return 1;
+    return 0;
 }
 
 int forge_connection_queue_send(
     ForgeConnection *connection,
-    const char *data,
+    const void *data,
     size_t length
 )
 {
+    if (connection == NULL || data == NULL) {
+        return -1;
+    }
+
     if (length >
         FORGE_CONNECTION_BUFFER_SIZE -
         connection->output_size) {
@@ -164,6 +160,37 @@ int forge_connection_queue_send(
     );
 
     connection->output_size += length;
+
+    return 0;
+}
+
+int forge_connection_queue_message(
+    ForgeConnection *connection,
+    const ForgeMessage *message
+)
+{
+    if (connection == NULL ||
+        message == NULL) {
+        return -1;
+    }
+
+    size_t available =
+        FORGE_CONNECTION_BUFFER_SIZE -
+        connection->output_size;
+
+    int encoded_size = forge_protocol_encode(
+        message,
+        (uint8_t *)connection->output_buffer +
+            connection->output_size,
+        available
+    );
+
+    if (encoded_size == -1) {
+        return -1;
+    }
+
+    connection->output_size +=
+        (size_t)encoded_size;
 
     return 0;
 }

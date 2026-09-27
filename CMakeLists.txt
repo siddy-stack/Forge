@@ -8,9 +8,14 @@ project(
 )
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
+
+# ============================================================
+# Forge Server
+# ============================================================
 
 add_executable(forge
     src/main.c
@@ -20,6 +25,7 @@ add_executable(forge
     src/event_loop.c
     src/connection_manager.c
     src/client_handler.c
+    src/protocol.c
 )
 
 target_include_directories(forge
@@ -29,6 +35,54 @@ target_include_directories(forge
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(forge PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
+# Protocol Unit Tests
+# ============================================================
+
+add_executable(forge_protocol_test
+    tests/test_protocol.c
+    src/protocol.c
+)
+
+target_include_directories(forge_protocol_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_protocol_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
+# Protocol Integration Client
+# ============================================================
+
+add_executable(forge_protocol_client
+    tests/protocol_client.c
+    src/protocol.c
+)
+
+target_include_directories(forge_protocol_client
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_protocol_client PRIVATE
         -Wall
         -Wextra
         -Wpedantic

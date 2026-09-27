@@ -1,7 +1,6 @@
 #include "client_handler.h"
 
 #include <stdio.h>
-#include <string.h>
 #include <sys/epoll.h>
 
 int forge_client_handle_read(
@@ -49,25 +48,39 @@ int forge_client_handle_read(
         return -1;
     }
 
-    char message[FORGE_CONNECTION_BUFFER_SIZE];
-
+    /*
+     * Process every complete message currently
+     * available in the input buffer.
+     */
     for (;;) {
+        ForgeMessage message;
+        size_t bytes_consumed = 0;
+
         int message_result =
             forge_connection_get_message(
                 connection,
-                message,
-                sizeof(message)
+                &message,
+                &bytes_consumed
             );
 
+        /*
+         * Not enough bytes for a complete message.
+         * Keep the data in the input buffer until
+         * the next EPOLLIN event.
+         */
         if (message_result == 0) {
             break;
         }
 
+        /*
+         * Invalid protocol data.
+         */
         if (message_result == -1) {
             fprintf(
                 stderr,
-                "Failed to extract message "
-                "from connection.\n"
+                "Invalid Forge protocol message "
+                "from fd=%d\n",
+                fd
             );
 
             forge_event_loop_remove(
@@ -84,15 +97,43 @@ int forge_client_handle_read(
         }
 
         printf(
-            "Received from fd=%d: %s",
+            "Received Forge message: "
+            "fd=%d type=%u request_id=%u "
+            "payload=%u bytes\n",
             fd,
-            message
+            message.type,
+            message.request_id,
+            message.payload_length
         );
 
-        if (forge_connection_queue_send(
+        /*
+         * Echo the complete Forge message back
+         * to the client.
+         */
+        if (forge_connection_queue_message(
                 connection,
-                message,
-                strlen(message)
+                &message
+            ) == -1) {
+            forge_event_loop_remove(
+                event_loop,
+                fd
+            );
+
+            forge_connection_manager_remove(
+                connection_manager,
+                fd
+            );
+
+            return -1;
+        }
+
+        /*
+         * Only consume the message after the response
+         * has been successfully queued.
+         */
+        if (forge_connection_consume_message(
+                connection,
+                bytes_consumed
             ) == -1) {
             forge_event_loop_remove(
                 event_loop,
@@ -182,4 +223,4 @@ int forge_client_handle_write(
     }
 
     return 1;
-} 
+}

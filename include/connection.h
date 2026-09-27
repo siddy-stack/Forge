@@ -1,9 +1,12 @@
 #ifndef FORGE_CONNECTION_H
 #define FORGE_CONNECTION_H
 
+#include "protocol.h"
+
 #include <stddef.h>
 
-#define FORGE_CONNECTION_BUFFER_SIZE 4096
+#define FORGE_CONNECTION_BUFFER_SIZE \
+    (FORGE_PROTOCOL_HEADER_SIZE + FORGE_PROTOCOL_MAX_PAYLOAD)
 
 typedef struct {
     int fd;
@@ -31,14 +34,24 @@ int forge_connection_receive(
 
 int forge_connection_get_message(
     ForgeConnection *connection,
-    char *message,
-    size_t message_size
+    ForgeMessage *message,
+    size_t *bytes_consumed
+);
+
+int forge_connection_consume_message(
+    ForgeConnection *connection,
+    size_t bytes_consumed
 );
 
 int forge_connection_queue_send(
     ForgeConnection *connection,
-    const char *data,
+    const void *data,
     size_t length
+);
+
+int forge_connection_queue_message(
+    ForgeConnection *connection,
+    const ForgeMessage *message
 );
 
 int forge_connection_flush(

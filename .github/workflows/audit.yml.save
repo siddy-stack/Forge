@@ -1,0 +1,68 @@
+name: Forge Audit
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  audit:
+    name: Static Analysis and Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            clang \
+            clang-format \
+            clang-tidy \
+            cppcheck
+
+      - name: Run Forge audit
+        run: |
+          chmod +x scripts/audit.sh
+          ./scripts/audit.sh
+
+  sanitizer:
+    name: Sanitizer Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake
+
+      - name: Configure sanitizer build
+        run: |
+          cmake \
+            -S . \
+            -B build-sanitizer \
+            -DFORGE_ENABLE_SANITIZERS=ON \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build sanitizer target
+        run: |
+          cmake --build build-sanitize
+      - name: Run protocol tests with sanitizers
+        run: |
+          ./build-sanitizer/forge_protocol_test
+

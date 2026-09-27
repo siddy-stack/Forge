@@ -105,12 +105,32 @@ option(
 if(FORGE_ENABLE_SANITIZERS)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 
-        target_compile_options(forge PRIVATE
+        set(FORGE_SANITIZER_FLAGS
             -fsanitize=address,undefined
             -fno-omit-frame-pointer
         )
 
+        target_compile_options(forge PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
         target_link_options(forge PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_protocol_test PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_protocol_test PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_protocol_client PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_protocol_client PRIVATE
             -fsanitize=address,undefined
         )
 

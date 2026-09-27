@@ -1,0 +1,94 @@
+========================================
+Forge Audit
+========================================
+
+[1/7] Checking code formatting...
+Formatting check passed.
+
+[2/7] Configuring CMake...
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/sidwashere/Projects/forge/build
+
+[3/7] Building Forge...
+[ 62%] Built target forge
+[ 81%] Built target forge_protocol_test
+[100%] Built target forge_protocol_client
+
+[4/7] Running protocol unit tests...
+All protocol tests passed.
+
+[5/7] Running cppcheck...
+Checking src/client_handler.c ...
+1/9 files checked 11% done
+Checking src/connection.c ...
+2/9 files checked 27% done
+Checking src/connection_manager.c ...
+3/9 files checked 34% done
+Checking src/event_loop.c ...
+4/9 files checked 43% done
+Checking src/main.c ...
+5/9 files checked 44% done
+Checking src/message_dispatcher.c ...
+6/9 files checked 55% done
+Checking src/network.c ...
+7/9 files checked 63% done
+Checking src/protocol.c ...
+8/9 files checked 74% done
+Checking src/server.c ...
+9/9 files checked 100% done
+
+[6/7] Running clang-tidy...
+
+Analyzing: src/client_handler.c
+1531 warnings generated.
+Suppressed 1531 warnings (1531 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/connection.c
+4155 warnings generated.
+Suppressed 4155 warnings (4155 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/connection_manager.c
+1617 warnings generated.
+Suppressed 1617 warnings (1617 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/event_loop.c
+3769 warnings generated.
+Suppressed 3769 warnings (3769 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/main.c
+1335 warnings generated.
+Suppressed 1335 warnings (1335 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/message_dispatcher.c
+1371 warnings generated.
+Suppressed 1371 warnings (1371 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/network.c
+4341 warnings generated.
+Suppressed 4341 warnings (4341 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/protocol.c
+1461 warnings generated.
+2922 warnings generated.
+4383 warnings generated.
+Suppressed 4383 warnings (4383 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+Analyzing: src/server.c
+4039 warnings generated.
+Suppressed 4039 warnings (4039 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+
+[7/7] Audit complete.
+
+========================================
+Forge audit completed successfully.
+========================================

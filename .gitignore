@@ -7,6 +7,7 @@
 # ==============================
 
 build/
+build-*/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
@@ -97,3 +98,28 @@ logs/
 *.swp
 *.swo
 *~
+
+# ==============================
+# CMake
+# ==============================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+Makefile
+
+
+# ==============================
+# Debug / sanitizer output
+# ==============================
+*.dSYM/
+*.gcda
+*.gcno
+*.profraw
+
+# ==============================
+# Executables
+# ==============================
+forge
+forge_protocol_test
+forge_protocol_client

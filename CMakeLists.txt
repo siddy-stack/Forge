@@ -34,6 +34,11 @@ target_include_directories(forge
         ${PROJECT_SOURCE_DIR}/include
 )
 
+target_compile_definitions(forge
+    PRIVATE
+        _POSIX_C_SOURCE=200809L
+)
+
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(forge PRIVATE
         -Wall

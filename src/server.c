@@ -6,10 +6,48 @@
 #include "event_loop.h"
 #include "network.h"
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+
+/* NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) */
+static volatile sig_atomic_t forge_shutdown_requested = 0;
+
+static void forge_server_handle_signal(int signal_number)
+{
+    (void)signal_number;
+
+    forge_shutdown_requested = 1;
+}
+
+static int forge_server_install_signal_handlers(void)
+{
+    struct sigaction action = {.sa_handler = forge_server_handle_signal,
+                               .sa_flags = 0};
+
+    if (sigemptyset(&action.sa_mask) == -1)
+    {
+        perror("sigemptyset");
+        return -1;
+    }
+
+    if (sigaction(SIGINT, &action, NULL) == -1)
+    {
+        perror("sigaction SIGINT");
+        return -1;
+    }
+
+    if (sigaction(SIGTERM, &action, NULL) == -1)
+    {
+        perror("sigaction SIGTERM");
+        return -1;
+    }
+
+    return 0;
+}
 
 static void
 forge_server_remove_connection(ForgeEventLoop *event_loop,
@@ -204,7 +242,7 @@ forge_server_run_event_loop(int server_file_descriptor,
                             ForgeEventLoop *event_loop,
                             ForgeConnectionManager *connection_manager)
 {
-    for (;;)
+    while (!forge_shutdown_requested)
     {
         int event_count = forge_event_loop_wait(event_loop, -1);
 
@@ -246,6 +284,13 @@ int forge_server_run(uint16_t port)
     ForgeEventLoop event_loop;
     ForgeConnectionManager connection_manager;
 
+    forge_shutdown_requested = 0;
+
+    if (forge_server_install_signal_handlers() == -1)
+    {
+        return 1;
+    }
+
     if (forge_server_initialize(port, &server_file_descriptor, &event_loop,
                                 &connection_manager) == -1)
     {
@@ -257,8 +302,12 @@ int forge_server_run(uint16_t port)
     forge_server_run_event_loop(server_file_descriptor, &event_loop,
                                 &connection_manager);
 
+    printf("Forge server shutting down...\n");
+
     forge_server_destroy(server_file_descriptor, &event_loop,
                          &connection_manager);
+
+    printf("Forge server stopped.\n");
 
     return 0;
 }

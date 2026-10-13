@@ -5,6 +5,11 @@
 
 void forge_connection_manager_init(ForgeConnectionManager *manager)
 {
+    if (manager == NULL)
+    {
+        return;
+    }
+
     manager->count = 0;
 
     for (size_t i = 0; i < FORGE_MAX_CONNECTIONS; i++)
@@ -16,6 +21,11 @@ void forge_connection_manager_init(ForgeConnectionManager *manager)
 int forge_connection_manager_add(ForgeConnectionManager *manager,
                                  ForgeConnection *connection)
 {
+    if (manager == NULL || connection == NULL)
+    {
+        return -1;
+    }
+
     if (manager->count >= FORGE_MAX_CONNECTIONS)
     {
         fprintf(stderr, "Connection limit reached.\n");
@@ -38,6 +48,11 @@ int forge_connection_manager_add(ForgeConnectionManager *manager,
 ForgeConnection *forge_connection_manager_get(ForgeConnectionManager *manager,
                                               int file_descriptor)
 {
+    if (manager == NULL)
+    {
+        return NULL;
+    }
+
     for (size_t i = 0; i < FORGE_MAX_CONNECTIONS; i++)
     {
         ForgeConnection *connection = manager->connections[i];
@@ -54,12 +69,18 @@ ForgeConnection *forge_connection_manager_get(ForgeConnectionManager *manager,
 int forge_connection_manager_remove(ForgeConnectionManager *manager,
                                     int file_descriptor)
 {
+    if (manager == NULL)
+    {
+        return -1;
+    }
+
     for (size_t i = 0; i < FORGE_MAX_CONNECTIONS; i++)
     {
         ForgeConnection *connection = manager->connections[i];
 
         if (connection != NULL && connection->fd == file_descriptor)
         {
+            forge_connection_begin_close(connection);
             forge_connection_close(connection);
 
             free(connection);
@@ -76,12 +97,18 @@ int forge_connection_manager_remove(ForgeConnectionManager *manager,
 
 void forge_connection_manager_destroy(ForgeConnectionManager *manager)
 {
+    if (manager == NULL)
+    {
+        return;
+    }
+
     for (size_t i = 0; i < FORGE_MAX_CONNECTIONS; i++)
     {
         ForgeConnection *connection = manager->connections[i];
 
         if (connection != NULL)
         {
+            forge_connection_begin_close(connection);
             forge_connection_close(connection);
             free(connection);
 

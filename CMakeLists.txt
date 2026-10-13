@@ -74,6 +74,101 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # ============================================================
+# Connection Unit Tests
+# ============================================================
+
+add_executable(forge_connection_test
+    tests/test_connection.c
+    src/connection.c
+    src/protocol.c
+)
+
+target_include_directories(forge_connection_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_compile_definitions(forge_connection_test
+    PRIVATE
+        _POSIX_C_SOURCE=200809L
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_connection_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
+# Connection Manager Unit Tests
+# ============================================================
+
+add_executable(forge_connection_manager_test
+    tests/test_connection_manager.c
+    src/connection_manager.c
+    src/connection.c
+    src/protocol.c
+)
+
+target_include_directories(forge_connection_manager_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_compile_definitions(forge_connection_manager_test
+    PRIVATE
+        _POSIX_C_SOURCE=200809L
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_connection_manager_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
+# Client Handler Unit Tests
+# ============================================================
+
+add_executable(forge_client_handler_test
+    tests/test_client_handler.c
+    src/client_handler.c
+    src/connection_manager.c
+    src/connection.c
+    src/event_loop.c
+    src/message_dispatcher.c
+    src/protocol.c
+)
+
+target_include_directories(forge_client_handler_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_compile_definitions(forge_client_handler_test
+    PRIVATE
+        _POSIX_C_SOURCE=200809L
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_client_handler_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
 # Protocol Integration Client
 # ============================================================
 
@@ -136,6 +231,30 @@ if(FORGE_ENABLE_SANITIZERS)
         )
 
         target_link_options(forge_protocol_client PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_connection_test PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_connection_test PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_connection_manager_test PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_connection_manager_test PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_client_handler_test PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_client_handler_test PRIVATE
             -fsanitize=address,undefined
         )
 

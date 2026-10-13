@@ -5,6 +5,19 @@
 #include <stdio.h>
 #include <sys/epoll.h>
 
+static int forge_client_update_events(ForgeEventLoop *event_loop,
+                                      const ForgeConnection *connection)
+{
+    uint32_t events = EPOLLIN;
+
+    if (forge_connection_has_pending_output(connection))
+    {
+        events |= EPOLLOUT;
+    }
+
+    return forge_event_loop_modify(event_loop, connection->fd, events);
+}
+
 int forge_client_handle_read(ForgeEventLoop *event_loop,
                              ForgeConnectionManager *connection_manager,
                              ForgeConnection *connection)
@@ -84,16 +97,13 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
         }
     }
 
-    if (forge_connection_has_pending_output(connection))
+    if (forge_client_update_events(event_loop, connection) == -1)
     {
-        if (forge_event_loop_modify(event_loop, fd, EPOLLIN | EPOLLOUT) == -1)
-        {
-            forge_event_loop_remove(event_loop, fd);
+        forge_event_loop_remove(event_loop, fd);
 
-            forge_connection_manager_remove(connection_manager, fd);
+        forge_connection_manager_remove(connection_manager, fd);
 
-            return -1;
-        }
+        return -1;
     }
 
     return 1;
@@ -116,16 +126,13 @@ int forge_client_handle_write(ForgeEventLoop *event_loop,
         return -1;
     }
 
-    if (!forge_connection_has_pending_output(connection))
+    if (forge_client_update_events(event_loop, connection) == -1)
     {
-        if (forge_event_loop_modify(event_loop, fd, EPOLLIN) == -1)
-        {
-            forge_event_loop_remove(event_loop, fd);
+        forge_event_loop_remove(event_loop, fd);
 
-            forge_connection_manager_remove(connection_manager, fd);
+        forge_connection_manager_remove(connection_manager, fd);
 
-            return -1;
-        }
+        return -1;
     }
 
     return 1;

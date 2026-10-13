@@ -31,9 +31,12 @@ echo "[3/7] Building Forge..."
 cmake --build build
 
 echo
-echo "[4/7] Running protocol unit tests..."
+echo "[4/7] Running unit tests..."
 
 ./build/forge_protocol_test
+./build/forge_connection_test
+./build/forge_connection_manager_test
+./build/forge_client_handler_test
 
 echo
 echo "[5/7] Running cppcheck..."

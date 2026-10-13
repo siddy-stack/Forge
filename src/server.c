@@ -16,6 +16,11 @@
 /* NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) */
 static volatile sig_atomic_t forge_shutdown_requested = 0;
 
+enum
+{
+    FORGE_SERVER_EVENT_WAIT_TIMEOUT_MS = 1000
+};
+
 static void forge_server_handle_signal(int signal_number)
 {
     (void)signal_number;
@@ -94,6 +99,10 @@ forge_server_accept_clients(int server_file_descriptor,
 
         if (forge_connection_manager_add(connection_manager, connection) == -1)
         {
+            fprintf(stderr,
+                    "Client rejected: connection limit reached for fd=%d\n",
+                    client_file_descriptor);
+
             forge_connection_close(connection);
 
             free(connection);
@@ -109,7 +118,33 @@ forge_server_accept_clients(int server_file_descriptor,
             continue;
         }
 
+        forge_connection_activate(connection);
+
         printf("Client connected: fd=%d\n", client_file_descriptor);
+    }
+}
+
+static void
+forge_server_remove_idle_connections(ForgeEventLoop *event_loop,
+                                     ForgeConnectionManager *connection_manager)
+{
+    uint64_t now_ms = forge_connection_get_time_ms();
+
+    for (size_t index = 0; index < FORGE_MAX_CONNECTIONS; index++)
+    {
+        const ForgeConnection *connection =
+            connection_manager->connections[index];
+
+        if (forge_connection_is_idle(connection, now_ms,
+                                     FORGE_CONNECTION_IDLE_TIMEOUT_MS))
+        {
+            int file_descriptor = connection->fd;
+
+            printf("Client timed out: fd=%d\n", file_descriptor);
+
+            forge_server_remove_connection(event_loop, connection_manager,
+                                           file_descriptor);
+        }
     }
 }
 
@@ -244,7 +279,8 @@ forge_server_run_event_loop(int server_file_descriptor,
 {
     while (!forge_shutdown_requested)
     {
-        int event_count = forge_event_loop_wait(event_loop, -1);
+        int event_count = forge_event_loop_wait(
+            event_loop, FORGE_SERVER_EVENT_WAIT_TIMEOUT_MS);
 
         if (event_count == -1)
         {
@@ -263,6 +299,8 @@ forge_server_run_event_loop(int server_file_descriptor,
             forge_server_handle_event(event_loop, connection_manager,
                                       server_file_descriptor, &event);
         }
+
+        forge_server_remove_idle_connections(event_loop, connection_manager);
     }
 }
 

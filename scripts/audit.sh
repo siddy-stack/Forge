@@ -37,6 +37,7 @@ echo "[4/7] Running unit tests..."
 ./build/forge_connection_test
 ./build/forge_connection_manager_test
 ./build/forge_client_handler_test
+./build/forge_metrics_test
 
 echo
 echo "[5/7] Running cppcheck..."

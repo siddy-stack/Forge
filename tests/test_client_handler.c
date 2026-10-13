@@ -34,11 +34,13 @@ static ForgeEvent wait_for_event(ForgeEventLoop *event_loop)
 
 static void destroy_fixture(ForgeEventLoop *event_loop,
                             ForgeConnectionManager *connection_manager,
-                            int file_descriptor, int peer_file_descriptor)
+                            ForgeMetrics *metrics, int file_descriptor,
+                            int peer_file_descriptor)
 {
     assert(forge_event_loop_remove(event_loop, file_descriptor) == 0);
     assert(forge_connection_manager_remove(connection_manager,
                                            file_descriptor) == 0);
+    forge_metrics_record_connection_close(metrics);
 
     forge_event_loop_destroy(event_loop);
     close(peer_file_descriptor);
@@ -48,6 +50,7 @@ static void test_read_enables_write_events(void)
 {
     ForgeEventLoop event_loop;
     ForgeConnectionManager connection_manager;
+    ForgeMetrics metrics;
     ForgeMessage message;
     ForgeConnection *connection;
     int sockets[2];
@@ -60,9 +63,11 @@ static void test_read_enables_write_events(void)
     assert(forge_event_loop_init(&event_loop) == 0);
 
     forge_connection_manager_init(&connection_manager);
+    forge_metrics_init(&metrics);
     connection = create_connection(sockets[0]);
 
     assert(forge_connection_manager_add(&connection_manager, connection) == 0);
+    forge_metrics_record_connection_open(&metrics);
     assert(forge_event_loop_add(&event_loop, sockets[0], EPOLLIN) == 0);
 
     message = (ForgeMessage){.type = FORGE_MESSAGE_PING,
@@ -75,25 +80,32 @@ static void test_read_enables_write_events(void)
 
     assert(encoded_size > 0);
     assert(send(sockets[1], buffer, (size_t)encoded_size, 0) == encoded_size);
-    assert(forge_client_handle_read(&event_loop, &connection_manager,
+    assert(forge_client_handle_read(&event_loop, &connection_manager, &metrics,
                                     connection) == 1);
+    assert(metrics.bytes_received == (uint64_t)encoded_size);
+    assert(metrics.messages_received == 1U);
+    assert(metrics.messages_sent == 1U);
 
     event = wait_for_event(&event_loop);
 
     assert(event.fd == sockets[0]);
     assert((event.events & EPOLLOUT) != 0U);
 
-    assert(forge_client_handle_write(&event_loop, &connection_manager,
+    assert(forge_client_handle_write(&event_loop, &connection_manager, &metrics,
                                      connection) == 1);
+    assert(metrics.bytes_sent > 0U);
     assert(forge_event_loop_wait(&event_loop, 0) == 0);
 
-    destroy_fixture(&event_loop, &connection_manager, sockets[0], sockets[1]);
+    destroy_fixture(&event_loop, &connection_manager, &metrics, sockets[0],
+                    sockets[1]);
+    assert(metrics.active_connections == 0U);
 }
 
 static void test_write_disables_write_events(void)
 {
     ForgeEventLoop event_loop;
     ForgeConnectionManager connection_manager;
+    ForgeMetrics metrics;
     ForgeConnection *connection;
     int sockets[2];
     char byte;
@@ -103,13 +115,16 @@ static void test_write_disables_write_events(void)
     assert(forge_event_loop_init(&event_loop) == 0);
 
     forge_connection_manager_init(&connection_manager);
+    forge_metrics_init(&metrics);
     connection = create_connection(sockets[0]);
 
     assert(forge_connection_manager_add(&connection_manager, connection) == 0);
+    forge_metrics_record_connection_open(&metrics);
     assert(forge_event_loop_add(&event_loop, sockets[0], EPOLLIN) == 0);
     assert(forge_connection_queue_send(connection, "x", 1) == 0);
-    assert(forge_client_handle_write(&event_loop, &connection_manager,
+    assert(forge_client_handle_write(&event_loop, &connection_manager, &metrics,
                                      connection) == 1);
+    assert(metrics.bytes_sent == 1U);
     assert(recv(sockets[1], &byte, sizeof(byte), 0) == 1);
     assert(byte == 'x');
 
@@ -121,7 +136,9 @@ static void test_write_disables_write_events(void)
     assert((event.events & EPOLLIN) != 0U);
     assert((event.events & EPOLLOUT) == 0U);
 
-    destroy_fixture(&event_loop, &connection_manager, sockets[0], sockets[1]);
+    destroy_fixture(&event_loop, &connection_manager, &metrics, sockets[0],
+                    sockets[1]);
+    assert(metrics.active_connections == 0U);
 }
 
 int main(void)

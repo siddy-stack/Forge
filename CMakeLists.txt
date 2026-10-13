@@ -23,6 +23,7 @@ add_executable(forge
     src/network.c
     src/connection.c
     src/event_loop.c
+    src/metrics.c
     src/connection_manager.c
     src/client_handler.c
     src/message_dispatcher.c
@@ -144,6 +145,7 @@ add_executable(forge_client_handler_test
     src/connection_manager.c
     src/connection.c
     src/event_loop.c
+    src/metrics.c
     src/message_dispatcher.c
     src/protocol.c
 )
@@ -160,6 +162,35 @@ target_compile_definitions(forge_client_handler_test
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(forge_client_handler_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
+# Metrics Unit Tests
+# ============================================================
+
+add_executable(forge_metrics_test
+    tests/test_metrics.c
+    src/metrics.c
+)
+
+target_include_directories(forge_metrics_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_compile_definitions(forge_metrics_test
+    PRIVATE
+        _POSIX_C_SOURCE=200809L
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_metrics_test PRIVATE
         -Wall
         -Wextra
         -Wpedantic
@@ -255,6 +286,14 @@ if(FORGE_ENABLE_SANITIZERS)
         )
 
         target_link_options(forge_client_handler_test PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_metrics_test PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_metrics_test PRIVATE
             -fsanitize=address,undefined
         )
 

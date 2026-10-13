@@ -4,6 +4,7 @@
 #include "connection.h"
 #include "connection_manager.h"
 #include "event_loop.h"
+#include "metrics.h"
 #include "network.h"
 
 #include <signal.h>
@@ -57,17 +58,20 @@ static int forge_server_install_signal_handlers(void)
 static void
 forge_server_remove_connection(ForgeEventLoop *event_loop,
                                ForgeConnectionManager *connection_manager,
-                               int file_descriptor)
+                               ForgeMetrics *metrics, int file_descriptor)
 {
     forge_event_loop_remove(event_loop, file_descriptor);
 
-    forge_connection_manager_remove(connection_manager, file_descriptor);
+    if (forge_connection_manager_remove(connection_manager, file_descriptor) ==
+        0)
+    {
+        forge_metrics_record_connection_close(metrics);
+    }
 }
 
-static void
-forge_server_accept_clients(int server_file_descriptor,
-                            ForgeEventLoop *event_loop,
-                            ForgeConnectionManager *connection_manager)
+static void forge_server_accept_clients(
+    int server_file_descriptor, ForgeEventLoop *event_loop,
+    ForgeConnectionManager *connection_manager, ForgeMetrics *metrics)
 {
     for (;;)
     {
@@ -119,6 +123,7 @@ forge_server_accept_clients(int server_file_descriptor,
         }
 
         forge_connection_activate(connection);
+        forge_metrics_record_connection_open(metrics);
 
         printf("Client connected: fd=%d\n", client_file_descriptor);
     }
@@ -126,7 +131,8 @@ forge_server_accept_clients(int server_file_descriptor,
 
 static void
 forge_server_remove_idle_connections(ForgeEventLoop *event_loop,
-                                     ForgeConnectionManager *connection_manager)
+                                     ForgeConnectionManager *connection_manager,
+                                     ForgeMetrics *metrics)
 {
     uint64_t now_ms = forge_connection_get_time_ms();
 
@@ -143,15 +149,14 @@ forge_server_remove_idle_connections(ForgeEventLoop *event_loop,
             printf("Client timed out: fd=%d\n", file_descriptor);
 
             forge_server_remove_connection(event_loop, connection_manager,
-                                           file_descriptor);
+                                           metrics, file_descriptor);
         }
     }
 }
 
-static int
-forge_server_handle_client_events(ForgeEventLoop *event_loop,
-                                  ForgeConnectionManager *connection_manager,
-                                  const ForgeEvent *event)
+static int forge_server_handle_client_events(
+    ForgeEventLoop *event_loop, ForgeConnectionManager *connection_manager,
+    ForgeMetrics *metrics, const ForgeEvent *event)
 {
     int file_descriptor = event->fd;
     uint32_t events = event->events;
@@ -168,7 +173,7 @@ forge_server_handle_client_events(ForgeEventLoop *event_loop,
 
     if (events & EPOLLIN)
     {
-        if (forge_client_handle_read(event_loop, connection_manager,
+        if (forge_client_handle_read(event_loop, connection_manager, metrics,
                                      connection) <= 0)
         {
             return 0;
@@ -185,7 +190,7 @@ forge_server_handle_client_events(ForgeEventLoop *event_loop,
 
     if (events & EPOLLOUT)
     {
-        if (forge_client_handle_write(event_loop, connection_manager,
+        if (forge_client_handle_write(event_loop, connection_manager, metrics,
                                       connection) <= 0)
         {
             return 0;
@@ -195,31 +200,29 @@ forge_server_handle_client_events(ForgeEventLoop *event_loop,
     return 0;
 }
 
-static void
-forge_server_handle_error(ForgeEventLoop *event_loop,
-                          ForgeConnectionManager *connection_manager,
-                          int server_file_descriptor, int file_descriptor)
+static void forge_server_handle_error(
+    ForgeEventLoop *event_loop, ForgeConnectionManager *connection_manager,
+    ForgeMetrics *metrics, int server_file_descriptor, int file_descriptor)
 {
     if (file_descriptor == server_file_descriptor)
     {
         return;
     }
 
-    forge_server_remove_connection(event_loop, connection_manager,
+    forge_server_remove_connection(event_loop, connection_manager, metrics,
                                    file_descriptor);
 }
 
-static void
-forge_server_handle_event(ForgeEventLoop *event_loop,
-                          ForgeConnectionManager *connection_manager,
-                          int server_file_descriptor, const ForgeEvent *event)
+static void forge_server_handle_event(
+    ForgeEventLoop *event_loop, ForgeConnectionManager *connection_manager,
+    ForgeMetrics *metrics, int server_file_descriptor, const ForgeEvent *event)
 {
     int file_descriptor = event->fd;
     uint32_t events = event->events;
 
     if (events & (EPOLLERR | EPOLLHUP))
     {
-        forge_server_handle_error(event_loop, connection_manager,
+        forge_server_handle_error(event_loop, connection_manager, metrics,
                                   server_file_descriptor, file_descriptor);
 
         return;
@@ -228,12 +231,13 @@ forge_server_handle_event(ForgeEventLoop *event_loop,
     if (file_descriptor == server_file_descriptor)
     {
         forge_server_accept_clients(server_file_descriptor, event_loop,
-                                    connection_manager);
+                                    connection_manager, metrics);
 
         return;
     }
 
-    forge_server_handle_client_events(event_loop, connection_manager, event);
+    forge_server_handle_client_events(event_loop, connection_manager, metrics,
+                                      event);
 }
 
 static int forge_server_initialize(uint16_t port, int *server_file_descriptor,
@@ -272,10 +276,9 @@ static int forge_server_initialize(uint16_t port, int *server_file_descriptor,
     return 0;
 }
 
-static void
-forge_server_run_event_loop(int server_file_descriptor,
-                            ForgeEventLoop *event_loop,
-                            ForgeConnectionManager *connection_manager)
+static void forge_server_run_event_loop(
+    int server_file_descriptor, ForgeEventLoop *event_loop,
+    ForgeConnectionManager *connection_manager, ForgeMetrics *metrics)
 {
     while (!forge_shutdown_requested)
     {
@@ -296,23 +299,39 @@ forge_server_run_event_loop(int server_file_descriptor,
                 continue;
             }
 
-            forge_server_handle_event(event_loop, connection_manager,
+            forge_server_handle_event(event_loop, connection_manager, metrics,
                                       server_file_descriptor, &event);
         }
 
-        forge_server_remove_idle_connections(event_loop, connection_manager);
+        forge_server_remove_idle_connections(event_loop, connection_manager,
+                                             metrics);
     }
 }
 
 static void forge_server_destroy(int server_file_descriptor,
                                  ForgeEventLoop *event_loop,
-                                 ForgeConnectionManager *connection_manager)
+                                 ForgeConnectionManager *connection_manager,
+                                 ForgeMetrics *metrics)
 {
+    for (size_t index = 0; index < FORGE_MAX_CONNECTIONS; index++)
+    {
+        const ForgeConnection *connection =
+            connection_manager->connections[index];
+
+        if (connection != NULL)
+        {
+            forge_server_remove_connection(event_loop, connection_manager,
+                                           metrics, connection->fd);
+        }
+    }
+
     forge_connection_manager_destroy(connection_manager);
 
     forge_event_loop_destroy(event_loop);
 
     close(server_file_descriptor);
+
+    forge_metrics_print(metrics);
 }
 
 int forge_server_run(uint16_t port)
@@ -321,8 +340,10 @@ int forge_server_run(uint16_t port)
 
     ForgeEventLoop event_loop;
     ForgeConnectionManager connection_manager;
+    ForgeMetrics metrics;
 
     forge_shutdown_requested = 0;
+    forge_metrics_init(&metrics);
 
     if (forge_server_install_signal_handlers() == -1)
     {
@@ -338,12 +359,12 @@ int forge_server_run(uint16_t port)
     printf("Forge server listening on port %u\n", port);
 
     forge_server_run_event_loop(server_file_descriptor, &event_loop,
-                                &connection_manager);
+                                &connection_manager, &metrics);
 
     printf("Forge server shutting down...\n");
 
     forge_server_destroy(server_file_descriptor, &event_loop,
-                         &connection_manager);
+                         &connection_manager, &metrics);
 
     printf("Forge server stopped.\n");
 

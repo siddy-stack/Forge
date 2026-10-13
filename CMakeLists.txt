@@ -22,7 +22,10 @@ add_executable(forge
     src/server.c
     src/network.c
     src/connection.c
+    src/dashboard.c
     src/event_loop.c
+    src/log.c
+    src/management_api.c
     src/metrics.c
     src/connection_manager.c
     src/client_handler.c
@@ -145,6 +148,7 @@ add_executable(forge_client_handler_test
     src/connection_manager.c
     src/connection.c
     src/event_loop.c
+    src/log.c
     src/metrics.c
     src/message_dispatcher.c
     src/protocol.c
@@ -162,6 +166,43 @@ target_compile_definitions(forge_client_handler_test
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(forge_client_handler_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
+# Management API Unit Tests
+# ============================================================
+
+add_executable(forge_management_api_test
+    tests/test_management_api.c
+    src/connection.c
+    src/connection_manager.c
+    src/dashboard.c
+    src/event_loop.c
+    src/log.c
+    src/management_api.c
+    src/metrics.c
+    src/network.c
+    src/protocol.c
+)
+
+target_include_directories(forge_management_api_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_compile_definitions(forge_management_api_test
+    PRIVATE
+        _POSIX_C_SOURCE=200809L
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_management_api_test PRIVATE
         -Wall
         -Wextra
         -Wpedantic
@@ -294,6 +335,14 @@ if(FORGE_ENABLE_SANITIZERS)
         )
 
         target_link_options(forge_metrics_test PRIVATE
+            -fsanitize=address,undefined
+        )
+
+        target_compile_options(forge_management_api_test PRIVATE
+            ${FORGE_SANITIZER_FLAGS}
+        )
+
+        target_link_options(forge_management_api_test PRIVATE
             -fsanitize=address,undefined
         )
 

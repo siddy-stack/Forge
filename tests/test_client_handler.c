@@ -51,6 +51,7 @@ static void test_read_enables_write_events(void)
     ForgeEventLoop event_loop;
     ForgeConnectionManager connection_manager;
     ForgeMetrics metrics;
+    ForgeLogBook logs;
     ForgeMessage message;
     ForgeConnection *connection;
     int sockets[2];
@@ -64,6 +65,7 @@ static void test_read_enables_write_events(void)
 
     forge_connection_manager_init(&connection_manager);
     forge_metrics_init(&metrics);
+    forge_log_init(&logs);
     connection = create_connection(sockets[0]);
 
     assert(forge_connection_manager_add(&connection_manager, connection) == 0);
@@ -81,7 +83,7 @@ static void test_read_enables_write_events(void)
     assert(encoded_size > 0);
     assert(send(sockets[1], buffer, (size_t)encoded_size, 0) == encoded_size);
     assert(forge_client_handle_read(&event_loop, &connection_manager, &metrics,
-                                    connection) == 1);
+                                    &logs, connection) == 1);
     assert(metrics.bytes_received == (uint64_t)encoded_size);
     assert(metrics.messages_received == 1U);
     assert(metrics.messages_sent == 1U);
@@ -92,7 +94,7 @@ static void test_read_enables_write_events(void)
     assert((event.events & EPOLLOUT) != 0U);
 
     assert(forge_client_handle_write(&event_loop, &connection_manager, &metrics,
-                                     connection) == 1);
+                                     &logs, connection) == 1);
     assert(metrics.bytes_sent > 0U);
     assert(forge_event_loop_wait(&event_loop, 0) == 0);
 
@@ -106,6 +108,7 @@ static void test_write_disables_write_events(void)
     ForgeEventLoop event_loop;
     ForgeConnectionManager connection_manager;
     ForgeMetrics metrics;
+    ForgeLogBook logs;
     ForgeConnection *connection;
     int sockets[2];
     char byte;
@@ -116,6 +119,7 @@ static void test_write_disables_write_events(void)
 
     forge_connection_manager_init(&connection_manager);
     forge_metrics_init(&metrics);
+    forge_log_init(&logs);
     connection = create_connection(sockets[0]);
 
     assert(forge_connection_manager_add(&connection_manager, connection) == 0);
@@ -123,7 +127,7 @@ static void test_write_disables_write_events(void)
     assert(forge_event_loop_add(&event_loop, sockets[0], EPOLLIN) == 0);
     assert(forge_connection_queue_send(connection, "x", 1) == 0);
     assert(forge_client_handle_write(&event_loop, &connection_manager, &metrics,
-                                     connection) == 1);
+                                     &logs, connection) == 1);
     assert(metrics.bytes_sent == 1U);
     assert(recv(sockets[1], &byte, sizeof(byte), 0) == 1);
     assert(byte == 'x');

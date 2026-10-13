@@ -9,7 +9,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int forge_network_create_listener(uint16_t port)
+static int forge_network_create_listener_at(uint16_t port,
+                                            in_addr_t bind_address)
 {
     int server_file_descriptor = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -34,7 +35,7 @@ int forge_network_create_listener(uint16_t port)
 
     struct sockaddr_in address = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(INADDR_ANY),
+        .sin_addr.s_addr = htonl(bind_address),
         .sin_port = htons(port),
     };
 
@@ -58,6 +59,16 @@ int forge_network_create_listener(uint16_t port)
     }
 
     return server_file_descriptor;
+}
+
+int forge_network_create_listener(uint16_t port)
+{
+    return forge_network_create_listener_at(port, INADDR_ANY);
+}
+
+int forge_network_create_local_listener(uint16_t port)
+{
+    return forge_network_create_listener_at(port, INADDR_LOOPBACK);
 }
 
 int forge_network_accept_client(int server_file_descriptor)

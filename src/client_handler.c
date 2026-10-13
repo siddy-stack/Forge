@@ -20,7 +20,8 @@ static int forge_client_update_events(ForgeEventLoop *event_loop,
 
 static int forge_client_disconnect(ForgeEventLoop *event_loop,
                                    ForgeConnectionManager *connection_manager,
-                                   ForgeMetrics *metrics, int file_descriptor)
+                                   ForgeMetrics *metrics, ForgeLogBook *logs,
+                                   int file_descriptor)
 {
     forge_event_loop_remove(event_loop, file_descriptor);
 
@@ -31,13 +32,16 @@ static int forge_client_disconnect(ForgeEventLoop *event_loop,
     }
 
     forge_metrics_record_connection_close(metrics);
+    forge_log_record(logs, forge_metrics_get_uptime_ms(metrics),
+                     "Client disconnected: fd=%d", file_descriptor);
 
     return 0;
 }
 
 int forge_client_handle_read(ForgeEventLoop *event_loop,
                              ForgeConnectionManager *connection_manager,
-                             ForgeMetrics *metrics, ForgeConnection *connection)
+                             ForgeMetrics *metrics, ForgeLogBook *logs,
+                             ForgeConnection *connection)
 {
     int fd = connection->fd;
     size_t input_size_before = connection->input_size;
@@ -46,7 +50,8 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
 
     if (result == 0)
     {
-        forge_client_disconnect(event_loop, connection_manager, metrics, fd);
+        forge_client_disconnect(event_loop, connection_manager, metrics, logs,
+                                fd);
 
         printf("Client disconnected: fd=%d\n", fd);
 
@@ -55,7 +60,8 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
 
     if (result == -1)
     {
-        forge_client_disconnect(event_loop, connection_manager, metrics, fd);
+        forge_client_disconnect(event_loop, connection_manager, metrics, logs,
+                                fd);
 
         return -1;
     }
@@ -84,7 +90,7 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
                     fd);
 
             forge_client_disconnect(event_loop, connection_manager, metrics,
-                                    fd);
+                                    logs, fd);
 
             return -1;
         }
@@ -95,11 +101,14 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
                fd, message.type, message.request_id, message.payload_length);
 
         forge_metrics_record_message_received(metrics);
+        forge_log_record(logs, forge_metrics_get_uptime_ms(metrics),
+                         "Received message: fd=%d type=%u request_id=%u", fd,
+                         message.type, message.request_id);
 
         if (forge_message_dispatch(connection, &message) == -1)
         {
             forge_client_disconnect(event_loop, connection_manager, metrics,
-                                    fd);
+                                    logs, fd);
 
             return -1;
         }
@@ -109,7 +118,7 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
         if (forge_connection_consume_message(connection, bytes_consumed) == -1)
         {
             forge_client_disconnect(event_loop, connection_manager, metrics,
-                                    fd);
+                                    logs, fd);
 
             return -1;
         }
@@ -117,7 +126,8 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
 
     if (forge_client_update_events(event_loop, connection) == -1)
     {
-        forge_client_disconnect(event_loop, connection_manager, metrics, fd);
+        forge_client_disconnect(event_loop, connection_manager, metrics, logs,
+                                fd);
 
         return -1;
     }
@@ -127,7 +137,7 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
 
 int forge_client_handle_write(ForgeEventLoop *event_loop,
                               ForgeConnectionManager *connection_manager,
-                              ForgeMetrics *metrics,
+                              ForgeMetrics *metrics, ForgeLogBook *logs,
                               ForgeConnection *connection)
 {
     int fd = connection->fd;
@@ -143,14 +153,16 @@ int forge_client_handle_write(ForgeEventLoop *event_loop,
 
     if (result == -1)
     {
-        forge_client_disconnect(event_loop, connection_manager, metrics, fd);
+        forge_client_disconnect(event_loop, connection_manager, metrics, logs,
+                                fd);
 
         return -1;
     }
 
     if (forge_client_update_events(event_loop, connection) == -1)
     {
-        forge_client_disconnect(event_loop, connection_manager, metrics, fd);
+        forge_client_disconnect(event_loop, connection_manager, metrics, logs,
+                                fd);
 
         return -1;
     }

@@ -10,6 +10,8 @@ enum
 
 int forge_network_create_listener(uint16_t port);
 
+int forge_network_create_local_listener(uint16_t port);
+
 int forge_network_accept_client(int server_file_descriptor);
 
 int forge_network_set_nonblocking(int file_descriptor);

@@ -88,6 +88,7 @@ int forge_client_handle_read(ForgeEventLoop *event_loop,
                     "Invalid Forge protocol message "
                     "from fd=%d\n",
                     fd);
+            forge_metrics_record_protocol_error(metrics);
 
             forge_client_disconnect(event_loop, connection_manager, metrics,
                                     logs, fd);

@@ -111,6 +111,7 @@ forge_server_accept_clients(int server_file_descriptor,
             fprintf(stderr,
                     "Client rejected: connection limit reached for fd=%d\n",
                     client_file_descriptor);
+            forge_metrics_record_rejected_connection(metrics);
             forge_log_record(
                 logs, forge_metrics_get_uptime_ms(metrics),
                 "Client rejected: connection limit reached for fd=%d",

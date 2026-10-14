@@ -13,7 +13,7 @@ static void test_connection_metrics(void)
     forge_metrics_record_connection_open(&metrics);
     forge_metrics_record_connection_open(&metrics);
 
-    assert(metrics.connections_total == 2U);
+    assert(metrics.total_connections == 2U);
     assert(metrics.active_connections == 2U);
 
     forge_metrics_record_connection_close(&metrics);
@@ -21,6 +21,10 @@ static void test_connection_metrics(void)
     forge_metrics_record_connection_close(&metrics);
 
     assert(metrics.active_connections == 0U);
+    forge_metrics_record_rejected_connection(&metrics);
+    forge_metrics_record_protocol_error(&metrics);
+    assert(metrics.rejected_connections == 1U);
+    assert(metrics.protocol_errors == 1U);
 }
 
 static void test_message_and_byte_metrics(void)

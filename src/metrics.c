@@ -36,7 +36,7 @@ void forge_metrics_record_connection_open(ForgeMetrics *metrics)
         return;
     }
 
-    metrics->connections_total++;
+    metrics->total_connections++;
     metrics->active_connections++;
 }
 
@@ -48,6 +48,26 @@ void forge_metrics_record_connection_close(ForgeMetrics *metrics)
     }
 
     metrics->active_connections--;
+}
+
+void forge_metrics_record_rejected_connection(ForgeMetrics *metrics)
+{
+    if (metrics == NULL)
+    {
+        return;
+    }
+
+    metrics->rejected_connections++;
+}
+
+void forge_metrics_record_protocol_error(ForgeMetrics *metrics)
+{
+    if (metrics == NULL)
+    {
+        return;
+    }
+
+    metrics->protocol_errors++;
 }
 
 void forge_metrics_record_message_received(ForgeMetrics *metrics)
@@ -117,12 +137,13 @@ void forge_metrics_print(const ForgeMetrics *metrics)
         return;
     }
 
-    printf("Forge metrics: uptime_ms=%" PRIu64 " connections_total=%" PRIu64
+    printf("Forge metrics: uptime_ms=%" PRIu64 " total_connections=%" PRIu64
            " active_connections=%" PRIu64 " messages_received=%" PRIu64
            " messages_sent=%" PRIu64 " bytes_received=%" PRIu64
-           " bytes_sent=%" PRIu64 "\n",
-           forge_metrics_get_uptime_ms(metrics), metrics->connections_total,
+           " bytes_sent=%" PRIu64 " rejected_connections=%" PRIu64
+           " protocol_errors=%" PRIu64 "\n",
+           forge_metrics_get_uptime_ms(metrics), metrics->total_connections,
            metrics->active_connections, metrics->messages_received,
-           metrics->messages_sent, metrics->bytes_received,
-           metrics->bytes_sent);
+           metrics->messages_sent, metrics->bytes_received, metrics->bytes_sent,
+           metrics->rejected_connections, metrics->protocol_errors);
 }

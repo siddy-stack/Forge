@@ -6,12 +6,14 @@
 typedef struct
 {
     uint64_t started_at_ms;
-    uint64_t connections_total;
+    uint64_t total_connections;
     uint64_t active_connections;
     uint64_t messages_received;
     uint64_t messages_sent;
     uint64_t bytes_received;
     uint64_t bytes_sent;
+    uint64_t rejected_connections;
+    uint64_t protocol_errors;
 } ForgeMetrics;
 
 void forge_metrics_init(ForgeMetrics *metrics);
@@ -19,6 +21,10 @@ void forge_metrics_init(ForgeMetrics *metrics);
 void forge_metrics_record_connection_open(ForgeMetrics *metrics);
 
 void forge_metrics_record_connection_close(ForgeMetrics *metrics);
+
+void forge_metrics_record_rejected_connection(ForgeMetrics *metrics);
+
+void forge_metrics_record_protocol_error(ForgeMetrics *metrics);
 
 void forge_metrics_record_message_received(ForgeMetrics *metrics);
 

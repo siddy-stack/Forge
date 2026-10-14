@@ -37,15 +37,18 @@ static void test_status_and_metrics(void)
                                                "GET", "/api/status", &metrics,
                                                &connections, &logs) > 0);
     assert(strstr(response, "HTTP/1.1 200 OK") != NULL);
-    assert(strstr(response, "\"status\":\"ok\"") != NULL);
+    assert(strstr(response, "\"status\":\"running\"") != NULL);
     assert(strstr(response, "\"active_connections\":0") != NULL);
+    assert(strstr(response, "\"total_connections\":1") != NULL);
 
     assert(forge_management_api_build_response(response, sizeof(response),
                                                "GET", "/api/metrics", &metrics,
                                                &connections, &logs) > 0);
-    assert(strstr(response, "\"connections_total\":1") != NULL);
+    assert(strstr(response, "\"total_connections\":1") != NULL);
     assert(strstr(response, "\"messages_received\":1") != NULL);
     assert(strstr(response, "\"bytes_sent\":34") != NULL);
+    assert(strstr(response, "\"rejected_connections\":0") != NULL);
+    assert(strstr(response, "\"protocol_errors\":0") != NULL);
 }
 
 static void test_connections_and_logs(void)
@@ -71,6 +74,16 @@ static void test_connections_and_logs(void)
     assert(strstr(response, "\"fd\":42") != NULL);
     assert(strstr(response, "\"state\":\"active\"") != NULL);
     assert(strstr(response, "\"pending_output_bytes\":7") != NULL);
+
+    assert(forge_management_api_build_response(
+               response, sizeof(response), "GET", "/api/connections/42",
+               &metrics, &connections, &logs) > 0);
+    assert(strstr(response, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(response, "\"fd\":42") != NULL);
+    assert(forge_management_api_build_response(
+               response, sizeof(response), "GET", "/api/connections/99",
+               &metrics, &connections, &logs) > 0);
+    assert(strstr(response, "HTTP/1.1 404 Not Found") != NULL);
 
     forge_log_record(&logs, 4U, "quoted \"message\"");
     assert(forge_management_api_build_response(response, sizeof(response),

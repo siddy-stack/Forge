@@ -6,9 +6,11 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -127,13 +129,18 @@ forge_management_build_status(ForgeManagementWriter *writer,
                               const ForgeMetrics *metrics,
                               const ForgeConnectionManager *connections)
 {
-    size_t active_connections = connections == NULL ? 0U : connections->count;
+    size_t connection_count = connections == NULL ? 0U : connections->count;
+    uint64_t total_connections =
+        metrics == NULL ? 0U : metrics->total_connections;
 
     forge_management_writer_append(
         writer,
-        "{\"status\":\"ok\",\"service\":\"forge\",\"uptime_ms\":%" PRIu64
-        ",\"active_connections\":%zu}",
-        forge_metrics_get_uptime_ms(metrics), active_connections);
+        "{\"status\":\"running\",\"service\":\"forge\",\"uptime_seconds\":"
+        "%" PRIu64 ",\"uptime_ms\":%" PRIu64 ",\"active_connections\":%zu"
+        ",\"total_connections\":%" PRIu64 "}",
+        forge_metrics_get_uptime_ms(metrics) / 1000U,
+        forge_metrics_get_uptime_ms(metrics), connection_count,
+        total_connections);
 }
 
 static void forge_management_build_metrics(ForgeManagementWriter *writer,
@@ -149,15 +156,20 @@ static void forge_management_build_metrics(ForgeManagementWriter *writer,
 
     forge_management_writer_append(
         writer,
-        "{\"uptime_ms\":%" PRIu64 ",\"connections_total\":%" PRIu64
-        ",\"active_connections\":%" PRIu64 ",\"messages_received\":%" PRIu64
-        ",\"messages_sent\":%" PRIu64 ",\"bytes_received\":%" PRIu64
-        ",\"bytes_sent\":%" PRIu64 "}",
+        "{\"uptime_seconds\":%" PRIu64 ",\"uptime_ms\":%" PRIu64
+        ",\"total_connections\":%" PRIu64 ",\"active_connections\":%" PRIu64
+        ",\"messages_received\":%" PRIu64 ",\"messages_sent\":%" PRIu64
+        ",\"bytes_received\":%" PRIu64 ",\"bytes_sent\":%" PRIu64
+        ",\"rejected_connections\":%" PRIu64 ",\"protocol_errors\":%" PRIu64
+        "}",
+        forge_metrics_get_uptime_ms(reported_metrics) / 1000U,
         forge_metrics_get_uptime_ms(reported_metrics),
-        reported_metrics->connections_total,
+        reported_metrics->total_connections,
         reported_metrics->active_connections,
         reported_metrics->messages_received, reported_metrics->messages_sent,
-        reported_metrics->bytes_received, reported_metrics->bytes_sent);
+        reported_metrics->bytes_received, reported_metrics->bytes_sent,
+        reported_metrics->rejected_connections,
+        reported_metrics->protocol_errors);
 }
 
 static void
@@ -207,6 +219,77 @@ forge_management_build_connections(ForgeManagementWriter *writer,
     }
 
     forge_management_writer_append(writer, "]}");
+}
+
+static int
+forge_management_build_connection(ForgeManagementWriter *writer,
+                                  const ForgeConnectionManager *connections,
+                                  int file_descriptor)
+{
+    uint64_t now_ms = forge_connection_get_time_ms();
+
+    if (connections == NULL)
+    {
+        return -1;
+    }
+
+    for (size_t index = 0; index < FORGE_MAX_CONNECTIONS; index++)
+    {
+        const ForgeConnection *connection = connections->connections[index];
+        uint64_t idle_ms;
+        size_t pending_output;
+
+        if (connection == NULL || connection->fd != file_descriptor)
+        {
+            continue;
+        }
+
+        idle_ms = now_ms < connection->last_activity_ms
+                      ? 0U
+                      : now_ms - connection->last_activity_ms;
+        pending_output = connection->output_size - connection->output_offset;
+        forge_management_writer_append(
+            writer,
+            "{\"fd\":%d,\"state\":\"%s\",\"input_bytes\":%zu,"
+            "\"pending_output_bytes\":%zu,\"idle_ms\":%" PRIu64 "}",
+            connection->fd,
+            forge_management_connection_state_name(connection->state),
+            connection->input_size, pending_output, idle_ms);
+        return writer->failed ? -1 : 0;
+    }
+
+    return -1;
+}
+
+static int forge_management_parse_connection_fd(const char *path,
+                                                int *file_descriptor)
+{
+    static const char prefix[] = "/api/connections/";
+    const char *value;
+    char *end;
+    long parsed;
+
+    if (path == NULL || file_descriptor == NULL ||
+        strncmp(path, prefix, sizeof(prefix) - 1U) != 0)
+    {
+        return 0;
+    }
+
+    value = path + sizeof(prefix) - 1U;
+    if (*value == '\0')
+    {
+        return -1;
+    }
+
+    errno = 0;
+    parsed = strtol(value, &end, 10);
+    if (errno != 0 || *end != '\0' || parsed < 0 || parsed > INT_MAX)
+    {
+        return -1;
+    }
+
+    *file_descriptor = (int)parsed;
+    return 1;
 }
 
 static void forge_management_build_logs(ForgeManagementWriter *writer,
@@ -278,6 +361,7 @@ int forge_management_api_build_response(
         .buffer = body, .capacity = sizeof(body), .length = 0, .failed = false};
     int status_code = 200;
     const char *status_text = "OK";
+    int connection_fd = -1;
 
     if (response == NULL || response_size == 0U || method == NULL ||
         path == NULL)
@@ -293,6 +377,18 @@ int forge_management_api_build_response(
              strcmp(path, "/api/connections") == 0)
     {
         forge_management_build_connections(&writer, connections);
+    }
+    else if (strcmp(method, "GET") == 0 &&
+             forge_management_parse_connection_fd(path, &connection_fd) == 1)
+    {
+        if (forge_management_build_connection(&writer, connections,
+                                              connection_fd) == -1)
+        {
+            status_code = 404;
+            status_text = "Not Found";
+            forge_management_writer_append(
+                &writer, "{\"error\":\"connection not found\"}");
+        }
     }
     else if (strcmp(method, "GET") == 0 && strcmp(path, "/api/metrics") == 0)
     {

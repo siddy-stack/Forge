@@ -15,8 +15,17 @@ enum
     FORGE_DEFAULT_MANAGEMENT_PORT = 8081,
     FORGE_MANAGEMENT_MAX_CLIENTS = 8,
     FORGE_MANAGEMENT_REQUEST_SIZE = 4096,
-    FORGE_MANAGEMENT_RESPONSE_SIZE = 131072
+    FORGE_MANAGEMENT_RESPONSE_SIZE = 131072,
+    FORGE_MANAGEMENT_TOKEN_SIZE = 128
 };
+
+typedef enum
+{
+    FORGE_MANAGEMENT_COMMAND_NONE,
+    FORGE_MANAGEMENT_COMMAND_PAUSE_ACCEPTING,
+    FORGE_MANAGEMENT_COMMAND_RESUME_ACCEPTING,
+    FORGE_MANAGEMENT_COMMAND_DISCONNECT
+} ForgeManagementCommand;
 
 typedef struct
 {
@@ -27,12 +36,16 @@ typedef struct
     size_t response_size;
     size_t response_offset;
     int shutdown_after_response;
+    int is_event_stream;
+    ForgeManagementCommand command;
+    int command_fd;
 } ForgeManagementClient;
 
 typedef struct
 {
     int listener_fd;
     uint16_t port;
+    char auth_token[FORGE_MANAGEMENT_TOKEN_SIZE];
     ForgeManagementClient clients[FORGE_MANAGEMENT_MAX_CLIENTS];
 } ForgeManagementApi;
 
@@ -47,11 +60,16 @@ void forge_management_api_stop(ForgeManagementApi *api,
 int forge_management_api_handles_fd(const ForgeManagementApi *api,
                                     int file_descriptor);
 
+void forge_management_api_publish_metrics(ForgeManagementApi *api,
+                                          ForgeEventLoop *event_loop,
+                                          const ForgeMetrics *metrics);
+
 int forge_management_api_handle_event(
     ForgeManagementApi *api, ForgeEventLoop *event_loop,
     const ForgeEvent *event, const ForgeMetrics *metrics,
     const ForgeConnectionManager *connections, const ForgeLogBook *logs,
-    volatile sig_atomic_t *shutdown_requested);
+    volatile sig_atomic_t *shutdown_requested, int *accepting_connections,
+    int *disconnect_file_descriptor);
 
 int forge_management_api_build_response(
     char *response, size_t response_size, const char *method, const char *path,

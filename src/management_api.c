@@ -477,11 +477,56 @@ static void forge_management_api_remove_client(ForgeEventLoop *event_loop,
     client->response_size = 0;
     client->response_offset = 0;
     client->shutdown_after_response = 0;
+    client->is_event_stream = 0;
+    client->command = FORGE_MANAGEMENT_COMMAND_NONE;
+    client->command_fd = -1;
+}
+
+static int forge_management_api_build_event(char *response,
+                                            size_t response_size,
+                                            const ForgeMetrics *metrics,
+                                            int include_headers)
+{
+    const ForgeMetrics empty_metrics = {0};
+    const ForgeMetrics *reported = metrics == NULL ? &empty_metrics : metrics;
+    int written;
+
+    written = snprintf(
+        response, response_size,
+        include_headers != 0
+            ? "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
+              "Cache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
+              "event: metrics\r\ndata: {\"uptime_seconds\":%" PRIu64
+              ",\"active_connections\":%" PRIu64
+              ",\"total_connections\":%" PRIu64 "}\r\n\r\n"
+            : "event: metrics\r\ndata: {\"uptime_seconds\":%" PRIu64
+              ",\"active_connections\":%" PRIu64
+              ",\"total_connections\":%" PRIu64 "}\r\n\r\n",
+        forge_metrics_get_uptime_ms(reported) / 1000U,
+        reported->active_connections, reported->total_connections);
+    return written < 0 || (size_t)written >= response_size ? -1 : written;
+}
+
+static int
+forge_management_api_is_authorized(const ForgeManagementApi *api,
+                                   const ForgeManagementClient *client)
+{
+    char header[FORGE_MANAGEMENT_TOKEN_SIZE + 32U];
+
+    if (api == NULL || client == NULL || api->auth_token[0] == '\0')
+    {
+        return 1;
+    }
+
+    (void)snprintf(header, sizeof(header), "\r\nAuthorization: Bearer %s\r\n",
+                   api->auth_token);
+    return strstr(client->request, header) != NULL;
 }
 
 static int forge_management_api_prepare_response(
-    ForgeManagementClient *client, const ForgeMetrics *metrics,
-    const ForgeConnectionManager *connections, const ForgeLogBook *logs)
+    const ForgeManagementApi *api, ForgeManagementClient *client,
+    const ForgeMetrics *metrics, const ForgeConnectionManager *connections,
+    const ForgeLogBook *logs)
 {
     char method[8];
     char path[256];
@@ -489,7 +534,21 @@ static int forge_management_api_prepare_response(
     int response_size;
 
     client->shutdown_after_response = 0;
+    client->is_event_stream = 0;
+    client->command = FORGE_MANAGEMENT_COMMAND_NONE;
+    client->command_fd = -1;
     client->request[client->request_size] = '\0';
+    if (!forge_management_api_is_authorized(api, client))
+    {
+        response_size = forge_management_write_http_response(
+            client->response, sizeof(client->response),
+            (ForgeHttpStatus){.code = 401, .text = "Unauthorized"},
+            (ForgeHttpResponseContent){.content_type = "application/json",
+                                       .body = "{\"error\":\"unauthorized\"}"});
+        client->response_size = (size_t)response_size;
+        client->response_offset = 0;
+        return response_size < 0 ? -1 : 0;
+    }
     parsed_fields = sscanf(client->request, "%7s %255s", method, path);
 
     if (parsed_fields != 2)
@@ -512,6 +571,58 @@ static int forge_management_api_prepare_response(
         {
             response_size = forge_management_api_build_dashboard_response(
                 client->response, sizeof(client->response));
+        }
+        else if (strcmp(method, "GET") == 0 && strcmp(path, "/api/events") == 0)
+        {
+            response_size = forge_management_api_build_event(
+                client->response, sizeof(client->response), metrics, 1);
+            client->is_event_stream = 1;
+        }
+        else if (strcmp(method, "POST") == 0 &&
+                 strcmp(path, "/api/control/pause") == 0)
+        {
+            response_size = forge_management_write_http_response(
+                client->response, sizeof(client->response),
+                (ForgeHttpStatus){.code = 200, .text = "OK"},
+                (ForgeHttpResponseContent){.content_type = "application/json",
+                                           .body = "{\"status\":\"paused\"}"});
+            client->command = FORGE_MANAGEMENT_COMMAND_PAUSE_ACCEPTING;
+        }
+        else if (strcmp(method, "POST") == 0 &&
+                 strcmp(path, "/api/control/resume") == 0)
+        {
+            response_size = forge_management_write_http_response(
+                client->response, sizeof(client->response),
+                (ForgeHttpStatus){.code = 200, .text = "OK"},
+                (ForgeHttpResponseContent){.content_type = "application/json",
+                                           .body =
+                                               "{\"status\":\"accepting\"}"});
+            client->command = FORGE_MANAGEMENT_COMMAND_RESUME_ACCEPTING;
+        }
+        else if (strcmp(method, "POST") == 0)
+        {
+            int disconnect_fd;
+            char suffix;
+
+            if (sscanf(path, "/api/connections/%d/disconnect%c", &disconnect_fd,
+                       &suffix) == 1 &&
+                disconnect_fd >= 0)
+            {
+                response_size = forge_management_write_http_response(
+                    client->response, sizeof(client->response),
+                    (ForgeHttpStatus){.code = 200, .text = "OK"},
+                    (ForgeHttpResponseContent){
+                        .content_type = "application/json",
+                        .body = "{\"status\":\"disconnecting\"}"});
+                client->command = FORGE_MANAGEMENT_COMMAND_DISCONNECT;
+                client->command_fd = disconnect_fd;
+            }
+            else
+            {
+                response_size = forge_management_api_build_response(
+                    client->response, sizeof(client->response), method, path,
+                    metrics, connections, logs);
+            }
         }
         else
         {
@@ -579,13 +690,16 @@ static void forge_management_api_accept_clients(ForgeManagementApi *api,
         client->response_size = 0;
         client->response_offset = 0;
         client->shutdown_after_response = 0;
+        client->is_event_stream = 0;
+        client->command = FORGE_MANAGEMENT_COMMAND_NONE;
+        client->command_fd = -1;
     }
 }
 
 static void forge_management_api_handle_read(
-    ForgeManagementClient *client, ForgeEventLoop *event_loop,
-    const ForgeMetrics *metrics, const ForgeConnectionManager *connections,
-    const ForgeLogBook *logs)
+    const ForgeManagementApi *api, ForgeManagementClient *client,
+    ForgeEventLoop *event_loop, const ForgeMetrics *metrics,
+    const ForgeConnectionManager *connections, const ForgeLogBook *logs)
 {
     for (;;)
     {
@@ -601,7 +715,7 @@ static void forge_management_api_handle_read(
             if (forge_management_request_is_complete(client))
             {
                 if (forge_management_api_prepare_response(
-                        client, metrics, connections, logs) == -1 ||
+                        api, client, metrics, connections, logs) == -1 ||
                     forge_event_loop_modify(event_loop, client->fd, EPOLLOUT) ==
                         -1)
                 {
@@ -636,10 +750,10 @@ static void forge_management_api_handle_read(
     }
 }
 
-static void
-forge_management_api_handle_write(ForgeManagementClient *client,
-                                  ForgeEventLoop *event_loop,
-                                  volatile sig_atomic_t *shutdown_requested)
+static void forge_management_api_handle_write(
+    ForgeManagementClient *client, ForgeEventLoop *event_loop,
+    volatile sig_atomic_t *shutdown_requested, int *accepting_connections,
+    int *disconnect_file_descriptor)
 {
     while (client->response_offset < client->response_size)
     {
@@ -666,6 +780,29 @@ forge_management_api_handle_write(ForgeManagementClient *client,
     {
         *shutdown_requested = 1;
     }
+    if (client->command == FORGE_MANAGEMENT_COMMAND_PAUSE_ACCEPTING &&
+        accepting_connections != NULL)
+    {
+        *accepting_connections = 0;
+    }
+    if (client->command == FORGE_MANAGEMENT_COMMAND_RESUME_ACCEPTING &&
+        accepting_connections != NULL)
+    {
+        *accepting_connections = 1;
+    }
+    if (client->command == FORGE_MANAGEMENT_COMMAND_DISCONNECT &&
+        disconnect_file_descriptor != NULL)
+    {
+        *disconnect_file_descriptor = client->command_fd;
+    }
+    if (client->is_event_stream != 0)
+    {
+        client->response_size = 0;
+        client->response_offset = 0;
+        client->command = FORGE_MANAGEMENT_COMMAND_NONE;
+        (void)forge_event_loop_modify(event_loop, client->fd, EPOLLIN);
+        return;
+    }
 
     forge_management_api_remove_client(event_loop, client);
 }
@@ -683,6 +820,7 @@ void forge_management_api_init(ForgeManagementApi *api)
     for (size_t index = 0; index < FORGE_MANAGEMENT_MAX_CLIENTS; index++)
     {
         api->clients[index].fd = -1;
+        api->clients[index].command_fd = -1;
     }
 }
 
@@ -710,6 +848,14 @@ int forge_management_api_start(ForgeManagementApi *api,
     }
 
     api->port = port;
+    {
+        const char *token = getenv("FORGE_MANAGEMENT_TOKEN");
+        if (token != NULL)
+        {
+            (void)snprintf(api->auth_token, sizeof(api->auth_token), "%s",
+                           token);
+        }
+    }
 
     return 0;
 }
@@ -759,13 +905,42 @@ int forge_management_api_handles_fd(const ForgeManagementApi *api,
     return 0;
 }
 
-int forge_management_api_handle_event(ForgeManagementApi *api,
-                                      ForgeEventLoop *event_loop,
-                                      const ForgeEvent *event,
-                                      const ForgeMetrics *metrics,
-                                      const ForgeConnectionManager *connections,
-                                      const ForgeLogBook *logs,
-                                      volatile sig_atomic_t *shutdown_requested)
+void forge_management_api_publish_metrics(ForgeManagementApi *api,
+                                          ForgeEventLoop *event_loop,
+                                          const ForgeMetrics *metrics)
+{
+    if (api == NULL || event_loop == NULL)
+    {
+        return;
+    }
+    for (size_t index = 0; index < FORGE_MANAGEMENT_MAX_CLIENTS; index++)
+    {
+        ForgeManagementClient *client = &api->clients[index];
+        int response_size;
+        if (client->fd < 0 || client->is_event_stream == 0 ||
+            client->response_size != 0)
+        {
+            continue;
+        }
+        response_size = forge_management_api_build_event(
+            client->response, sizeof(client->response), metrics, 0);
+        if (response_size < 0)
+        {
+            forge_management_api_remove_client(event_loop, client);
+            continue;
+        }
+        client->response_size = (size_t)response_size;
+        client->response_offset = 0;
+        (void)forge_event_loop_modify(event_loop, client->fd, EPOLLOUT);
+    }
+}
+
+int forge_management_api_handle_event(
+    ForgeManagementApi *api, ForgeEventLoop *event_loop,
+    const ForgeEvent *event, const ForgeMetrics *metrics,
+    const ForgeConnectionManager *connections, const ForgeLogBook *logs,
+    volatile sig_atomic_t *shutdown_requested, int *accepting_connections,
+    int *disconnect_file_descriptor)
 {
     ForgeManagementClient *client;
 
@@ -800,14 +975,15 @@ int forge_management_api_handle_event(ForgeManagementApi *api,
 
     if (event->events & EPOLLIN)
     {
-        forge_management_api_handle_read(client, event_loop, metrics,
+        forge_management_api_handle_read(api, client, event_loop, metrics,
                                          connections, logs);
     }
 
     if (client->fd >= 0 && event->events & EPOLLOUT)
     {
-        forge_management_api_handle_write(client, event_loop,
-                                          shutdown_requested);
+        forge_management_api_handle_write(
+            client, event_loop, shutdown_requested, accepting_connections,
+            disconnect_file_descriptor);
     }
 
     return 1;

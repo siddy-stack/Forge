@@ -18,6 +18,7 @@
 
 /* NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) */
 static volatile sig_atomic_t forge_shutdown_requested = 0;
+static int forge_accepting_connections = 1;
 
 enum
 {
@@ -238,11 +239,19 @@ forge_server_handle_event(ForgeEventLoop *event_loop,
 {
     int file_descriptor = event->fd;
     uint32_t events = event->events;
+    int disconnect_file_descriptor = -1;
 
-    if (forge_management_api_handle_event(management_api, event_loop, event,
-                                          metrics, connection_manager, logs,
-                                          &forge_shutdown_requested))
+    if (forge_management_api_handle_event(
+            management_api, event_loop, event, metrics, connection_manager,
+            logs, &forge_shutdown_requested, &forge_accepting_connections,
+            &disconnect_file_descriptor))
     {
+        if (disconnect_file_descriptor >= 0)
+        {
+            forge_server_remove_connection(event_loop, connection_manager,
+                                           metrics, logs,
+                                           disconnect_file_descriptor);
+        }
         return;
     }
 
@@ -254,7 +263,8 @@ forge_server_handle_event(ForgeEventLoop *event_loop,
         return;
     }
 
-    if (file_descriptor == server_file_descriptor)
+    if (file_descriptor == server_file_descriptor &&
+        forge_accepting_connections)
     {
         forge_server_accept_clients(server_file_descriptor, event_loop,
                                     connection_manager, metrics, logs);
@@ -343,6 +353,8 @@ static void forge_server_run_event_loop(
 
         forge_server_remove_idle_connections(event_loop, connection_manager,
                                              metrics, logs);
+        forge_management_api_publish_metrics(management_api, event_loop,
+                                             metrics);
     }
 }
 
@@ -386,6 +398,7 @@ int forge_server_run(uint16_t port)
     ForgeManagementApi management_api;
 
     forge_shutdown_requested = 0;
+    forge_accepting_connections = 1;
     forge_metrics_init(&metrics);
     forge_log_init(&logs);
 

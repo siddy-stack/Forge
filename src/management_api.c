@@ -315,7 +315,10 @@ static void forge_management_build_logs(ForgeManagementWriter *writer,
 
         forge_management_writer_append(
             writer,
-            "{\"uptime_ms\":%" PRIu64 ",\"message\":", entry->uptime_ms);
+            "{\"uptime_ms\":%" PRIu64 ",\"level\":\"%s\",\"component\":",
+            entry->uptime_ms, forge_log_level_name(entry->level));
+        forge_management_writer_append_json_string(writer, entry->component);
+        forge_management_writer_append(writer, ",\"message\":");
         forge_management_writer_append_json_string(writer, entry->message);
         forge_management_writer_append(writer, "}");
     }

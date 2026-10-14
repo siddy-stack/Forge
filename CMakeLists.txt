@@ -265,6 +265,24 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # ============================================================
+# Connection Load Client
+# ============================================================
+
+add_executable(forge_load_client
+    tools/load_client.c
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_load_client PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
 # Sanitizers
 # ============================================================
 

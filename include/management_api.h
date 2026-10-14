@@ -64,6 +64,11 @@ void forge_management_api_publish_metrics(ForgeManagementApi *api,
                                           ForgeEventLoop *event_loop,
                                           const ForgeMetrics *metrics);
 
+void forge_management_api_publish_event(ForgeManagementApi *api,
+                                        ForgeEventLoop *event_loop,
+                                        const ForgeMetrics *metrics,
+                                        const char *event_name);
+
 int forge_management_api_handle_event(
     ForgeManagementApi *api, ForgeEventLoop *event_loop,
     const ForgeEvent *event, const ForgeMetrics *metrics,

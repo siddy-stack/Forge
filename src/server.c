@@ -327,6 +327,8 @@ static void forge_server_run_event_loop(
     ForgeConnectionManager *connection_manager, ForgeMetrics *metrics,
     ForgeLogBook *logs, ForgeManagementApi *management_api)
 {
+    ForgeMetrics previous_metrics = *metrics;
+
     while (!forge_shutdown_requested)
     {
         int event_count = forge_event_loop_wait(
@@ -353,8 +355,31 @@ static void forge_server_run_event_loop(
 
         forge_server_remove_idle_connections(event_loop, connection_manager,
                                              metrics, logs);
+        if (metrics->total_connections > previous_metrics.total_connections)
+        {
+            forge_management_api_publish_event(management_api, event_loop,
+                                               metrics, "connection_opened");
+        }
+        if (metrics->active_connections < previous_metrics.active_connections)
+        {
+            forge_management_api_publish_event(management_api, event_loop,
+                                               metrics, "connection_closed");
+        }
+        if (metrics->messages_received > previous_metrics.messages_received)
+        {
+            forge_management_api_publish_event(management_api, event_loop,
+                                               metrics, "message_received");
+        }
+        if (metrics->protocol_errors > previous_metrics.protocol_errors)
+        {
+            forge_management_api_publish_event(management_api, event_loop,
+                                               metrics, "protocol_error");
+            forge_management_api_publish_event(management_api, event_loop,
+                                               metrics, "server_warning");
+        }
         forge_management_api_publish_metrics(management_api, event_loop,
                                              metrics);
+        previous_metrics = *metrics;
     }
 }
 

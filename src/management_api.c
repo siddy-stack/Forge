@@ -485,6 +485,7 @@ static void forge_management_api_remove_client(ForgeEventLoop *event_loop,
 static int forge_management_api_build_event(char *response,
                                             size_t response_size,
                                             const ForgeMetrics *metrics,
+                                            const char *event_name,
                                             int include_headers)
 {
     const ForgeMetrics empty_metrics = {0};
@@ -496,13 +497,13 @@ static int forge_management_api_build_event(char *response,
         include_headers != 0
             ? "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
               "Cache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
-              "event: metrics\r\ndata: {\"uptime_seconds\":%" PRIu64
+              "event: %s\r\ndata: {\"uptime_seconds\":%" PRIu64
               ",\"active_connections\":%" PRIu64
               ",\"total_connections\":%" PRIu64 "}\r\n\r\n"
-            : "event: metrics\r\ndata: {\"uptime_seconds\":%" PRIu64
+            : "event: %s\r\ndata: {\"uptime_seconds\":%" PRIu64
               ",\"active_connections\":%" PRIu64
               ",\"total_connections\":%" PRIu64 "}\r\n\r\n",
-        forge_metrics_get_uptime_ms(reported) / 1000U,
+        event_name, forge_metrics_get_uptime_ms(reported) / 1000U,
         reported->active_connections, reported->total_connections);
     return written < 0 || (size_t)written >= response_size ? -1 : written;
 }
@@ -575,7 +576,8 @@ static int forge_management_api_prepare_response(
         else if (strcmp(method, "GET") == 0 && strcmp(path, "/api/events") == 0)
         {
             response_size = forge_management_api_build_event(
-                client->response, sizeof(client->response), metrics, 1);
+                client->response, sizeof(client->response), metrics, "metrics",
+                1);
             client->is_event_stream = 1;
         }
         else if (strcmp(method, "POST") == 0 &&
@@ -923,7 +925,38 @@ void forge_management_api_publish_metrics(ForgeManagementApi *api,
             continue;
         }
         response_size = forge_management_api_build_event(
-            client->response, sizeof(client->response), metrics, 0);
+            client->response, sizeof(client->response), metrics, "metrics", 0);
+        if (response_size < 0)
+        {
+            forge_management_api_remove_client(event_loop, client);
+            continue;
+        }
+        client->response_size = (size_t)response_size;
+        client->response_offset = 0;
+        (void)forge_event_loop_modify(event_loop, client->fd, EPOLLOUT);
+    }
+}
+
+void forge_management_api_publish_event(ForgeManagementApi *api,
+                                        ForgeEventLoop *event_loop,
+                                        const ForgeMetrics *metrics,
+                                        const char *event_name)
+{
+    if (api == NULL || event_loop == NULL || event_name == NULL)
+    {
+        return;
+    }
+    for (size_t index = 0; index < FORGE_MANAGEMENT_MAX_CLIENTS; index++)
+    {
+        ForgeManagementClient *client = &api->clients[index];
+        int response_size;
+        if (client->fd < 0 || client->is_event_stream == 0 ||
+            client->response_size != 0)
+        {
+            continue;
+        }
+        response_size = forge_management_api_build_event(
+            client->response, sizeof(client->response), metrics, event_name, 0);
         if (response_size < 0)
         {
             forge_management_api_remove_client(event_loop, client);

@@ -283,6 +283,30 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # ============================================================
+# Protocol Workload Client
+# ============================================================
+
+add_executable(forge_protocol_load_client
+    tools/protocol_load_client.c
+    src/protocol.c
+)
+
+target_include_directories(forge_protocol_load_client
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(forge_protocol_load_client PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wshadow
+    )
+endif()
+
+# ============================================================
 # Sanitizers
 # ============================================================
 
